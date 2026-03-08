@@ -87,32 +87,101 @@ description: Draft MPERS/MFRS-compliant financial statements for Malaysian statu
 - Other Statutory Information (Sections 248-251)
 - Auditors / Auditors' Remuneration
 
-## Python Scripts
+## Output Format
 
-Located in `scripts/` within this skill folder:
-- `word_utils.py` - Create Word documents for FS, management letters, representation letters
-- `fs_generator.py` - MPERSFinancialStatements class for complete FS packages
+Financial statements are generated as `.md` files in the `G_Outstanding/` folder within the client engagement directory:
 
-### Usage
-```python
-from fs_generator import generate_mpers_fs, MPERSFinancialStatements
-
-# Quick generation
-generate_mpers_fs(
-    filepath='output.docx',
-    company_name='ABC Sdn. Bhd.',
-    company_no='123456-X',
-    year_end='31 December 2024'
-)
-
-# With data
-fs = MPERSFinancialStatements(
-    company_name='ABC Sdn. Bhd.',
-    company_no='123456-X',
-    year_end='31 December 2024',
-    directors=['Director A', 'Director B']
-)
-fs.set_sofp_data({...})
-fs.set_soci_data({...})
-fs.generate_full_fs('output.docx')
 ```
+G_Outstanding/
+├── G1_Directors_Report.md
+├── G2_SOFP.md
+├── G3_SOCI.md
+├── G4_SOCE.md
+├── G5_SCF.md
+├── G6_Notes.md
+└── G7_Supplementary_Info.md
+```
+
+## Variable Usage in Financial Statements
+
+All monetary figures MUST use `{{variable}}` placeholders from `master_data.json`. Never hardcode figures.
+
+### SOFP Template Structure
+
+```markdown
+---
+ref: G2
+title: Statement of Financial Position
+section: G_Outstanding
+---
+
+# {{company_name}}
+## (Company No. {{company_reg_no}})
+## STATEMENT OF FINANCIAL POSITION AS AT {{year_end_date}}
+
+| | Note | {{fye_year}} | {{py_fye_year}} |
+|---|---|---|---|
+| | | **RM** | **RM** |
+| **NON-CURRENT ASSETS** | | | |
+| Property, plant and equipment | 5 | {{total_ppe}} | {{py_total_ppe}} |
+| Investment properties | 6 | {{total_investment_properties}} | {{py_total_investment_properties}} |
+| | | **{{total_non_current_assets}}** | **{{py_total_non_current_assets}}** |
+| **CURRENT ASSETS** | | | |
+| Inventories | 9 | {{total_inventories}} | {{py_total_inventories}} |
+| Trade receivables | 10 | {{total_trade_receivables}} | {{py_total_trade_receivables}} |
+| Other receivables, deposits & prepayments | 11 | {{total_other_receivables}} | {{py_total_other_receivables}} |
+| Cash and bank balances | 13 | {{total_cash_bank}} | {{py_total_cash_bank}} |
+| | | **{{total_current_assets}}** | **{{py_total_current_assets}}** |
+| **TOTAL ASSETS** | | **{{total_assets}}** | **{{py_total_assets}}** |
+| | | | |
+| **EQUITY** | | | |
+| Share capital | 14 | {{share_capital}} | {{py_share_capital}} |
+| Retained earnings | 16 | {{retained_earnings}} | {{py_retained_earnings}} |
+| **TOTAL EQUITY** | | **{{total_equity}}** | **{{py_total_equity}}** |
+| | | | |
+| **NON-CURRENT LIABILITIES** | | | |
+| Borrowings | 17 | {{nc_borrowings}} | {{py_nc_borrowings}} |
+| Hire purchase payables | 18 | {{nc_hp_liabilities}} | {{py_nc_hp_liabilities}} |
+| Deferred tax liabilities | 19 | {{total_deferred_tax}} | {{py_total_deferred_tax}} |
+| | | **{{total_non_current_liabilities}}** | **{{py_total_non_current_liabilities}}** |
+| **CURRENT LIABILITIES** | | | |
+| Trade payables | 20 | {{total_trade_payables}} | {{py_total_trade_payables}} |
+| Other payables & accruals | 21 | {{total_other_payables}} | {{py_total_other_payables}} |
+| Amount due to directors | 22 | {{amount_due_directors}} | {{py_amount_due_directors}} |
+| Tax payable | | {{total_tax_payable}} | {{py_total_tax_payable}} |
+| | | **{{total_current_liabilities}}** | **{{py_total_current_liabilities}}** |
+| **TOTAL LIABILITIES** | | **{{total_liabilities}}** | **{{py_total_liabilities}}** |
+| **TOTAL EQUITY AND LIABILITIES** | | **{{total_equity_liabilities}}** | **{{py_total_equity_liabilities}}** |
+```
+
+### Notes Template Structure (PPE Example)
+
+```markdown
+### 5. PROPERTY, PLANT AND EQUIPMENT
+
+| | Land & Buildings | Motor Vehicles | Office Equipment | Furniture & Fittings | Total |
+|---|---|---|---|---|---|
+| **Cost** | | | | | |
+| At beginning of year | {{py_ppe_land_cost}} | {{py_ppe_mv_cost}} | {{py_ppe_oe_cost}} | {{py_ppe_ff_cost}} | {{py_ppe_total_cost}} |
+| Additions | {{ppe_land_additions}} | {{ppe_mv_additions}} | {{ppe_oe_additions}} | {{ppe_ff_additions}} | {{ppe_total_additions}} |
+| Disposals | {{ppe_land_disposals}} | {{ppe_mv_disposals}} | {{ppe_oe_disposals}} | {{ppe_ff_disposals}} | {{ppe_total_disposals}} |
+| At end of year | {{ppe_land_cost}} | {{ppe_mv_cost}} | {{ppe_oe_cost}} | {{ppe_ff_cost}} | {{ppe_total_cost}} |
+| **Accumulated Depreciation** | | | | | |
+| At beginning of year | {{py_ppe_land_ad}} | {{py_ppe_mv_ad}} | {{py_ppe_oe_ad}} | {{py_ppe_ff_ad}} | {{py_ppe_total_ad}} |
+| Charge for the year | {{ppe_land_depn}} | {{ppe_mv_depn}} | {{ppe_oe_depn}} | {{ppe_ff_depn}} | {{ppe_total_depn}} |
+| Disposals | {{ppe_land_ad_disp}} | {{ppe_mv_ad_disp}} | {{ppe_oe_ad_disp}} | {{ppe_ff_ad_disp}} | {{ppe_total_ad_disp}} |
+| At end of year | {{ppe_land_ad}} | {{ppe_mv_ad}} | {{ppe_oe_ad}} | {{ppe_ff_ad}} | {{ppe_total_ad}} |
+| **Net Book Value** | **{{ppe_land_nbv}}** | **{{ppe_mv_nbv}}** | **{{ppe_oe_nbv}}** | **{{ppe_ff_nbv}}** | **{{total_ppe}}** |
+```
+
+## Quality Checklist for FS Drafts
+
+Before delivering any financial statement set, verify:
+- [ ] **No hardcoded financial figures** — all amounts use `{{variable}}` placeholders
+- [ ] Every variable exists in `master_data.json`
+- [ ] SOFP balances: Total Assets = Total Equity + Total Liabilities
+- [ ] SOCI ties to Retained Earnings movement in SOCE
+- [ ] Note references in SOFP/SOCI match actual note numbers in G6
+- [ ] Prior year comparatives included for all line items
+- [ ] Directors' Report profit figure matches SOCI
+- [ ] Proper MPERS/MFRS terminology used throughout

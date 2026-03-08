@@ -1,59 +1,107 @@
 ---
 name: viewer
-description: Generate interactive HTML viewer and START_VIEWER.bat for audit working papers
+description: Generate interactive HTML viewer, server, and START_VIEWER.bat for audit working papers
 ---
 
 # Working Papers Viewer
 
 ## Requirement
 
-**EVERY engagement MUST have:**
-1. `audit_viewer.html` - Interactive HTML viewer for all working papers
-2. `START_VIEWER.bat` - Batch file to launch the viewer
+**EVERY engagement MUST have these 4 files:**
+1. `audit_viewer.html` - Interactive HTML viewer with full feature set
+2. `server.py` - Python local server with API endpoints
+3. `START_VIEWER.bat` - Batch file to launch the viewer
+4. `master_data.json` - Shared variable data for the engagement
 
 ## When to Generate
 
 | Trigger | Action |
 |---------|--------|
-| New working paper created | Add to sections array, regenerate HTML |
-| Working paper deleted | Remove from sections array, regenerate HTML |
-| New section/folder added | Add new section object, regenerate HTML |
-| Content updated only | No HTML change needed (auto-loads) |
+| New engagement created | Generate all 4 files from templates |
+| New working paper created | Add to sections array in HTML, regenerate |
+| Working paper deleted | Remove from sections array, regenerate |
+| New section/folder added | Add new section object, regenerate |
+| Content updated only | No regeneration needed (auto-loads via server) |
 | Final submission | Full regeneration and QC check |
 
-## START_VIEWER.bat Template
+## File Templates
 
-See `VIEWER_TEMPLATE.md` in this skill folder for the full HTML and BAT templates.
+All templates are in `VIEWER_TEMPLATE.md` in this skill folder. The template contains:
 
-The batch file must:
-- Display client name, company number, FYE in ASCII banner
-- Start Python HTTP server on port 8888
-- Auto-open browser after 2 seconds
-- Fall back to python3 if python fails
+1. **`server.py`** - Python server with endpoints:
+   - `GET /api/master` - Read master_data.json
+   - `PUT /api/master` - Save master data with timestamp
+   - `PUT /api/save` - Save edited markdown files
+   - `POST /api/chat` - Proxy to Anthropic API (tool-use support)
+   - `GET /api/files` - List all markdown files
+   - `GET /api/skills` / `GET /api/skills/{id}` - Read skill documents
+   - No-cache headers on all responses
+   - ThreadingHTTPServer on port 8000
 
-## audit_viewer.html Requirements
+2. **`START_VIEWER.bat`** - Batch launcher:
+   - Display: Company name, company number, FYE, reporting framework
+   - Deliverables list: Sections A-G
+   - Runs `python server.py` on port 8000
+   - Auto-opens browser to `audit_viewer.html`
 
-### Structure
-1. **Header** - Client name, company no, FYE, framework, status badge
-2. **Nav Panel (Left)** - Search box, collapsible sections (A-G), file items, Download All button
-3. **Preview Panel (Right)** - Breadcrumb, document title, rendered markdown
+3. **`audit_viewer.html`** - Full-featured viewer (~3000 lines):
+   - Variable system (`{{variable_name}}` with modifiers)
+   - Inline variable editing (click-to-edit popovers)
+   - Master data editor (full-page, tab-based)
+   - File navigation with collapsible A-G sections
+   - Edit mode (Toast UI WYSIWYG editor)
+   - Sign-off system (preparer + reviewer)
+   - Review notes (text selection → highlight → modal)
+   - Cross-file review summary
+   - Bulk sign-off
+   - Download All (standalone offline HTML)
+   - AI chat agent (tool-use, skills integration)
+   - Search with Ctrl+F shortcut
+   - Draggable resizer
 
-### Required JS Functions
-- `loadFile(folder, filename, displayName, ref)` - Load and render markdown
-- `searchFiles(query)` - Filter navigation items
-- `downloadAllDocuments()` - Generate offline HTML with all documents
+4. **`master_data.json`** - Variable store:
+   - Company identity (name, reg no, FYE, framework)
+   - Key financial figures (revenue, assets, liabilities)
+   - Audit information (firm, partner, materiality)
 
-### Download All Feature (CRITICAL)
-Must: fetch all markdown files, convert via marked.js, create standalone HTML with inline CSS, properly escape script tags (`'<scr' + 'ipt>'`), store content in hidden divs, work completely offline.
+## Audit Section Structure
 
-### CSS Styling
-- Nav panel: dark theme (#1e293b)
-- Preview: white background
-- Accents: blue (#60a5fa, #3b82f6)
-- Tables: header gradient, alternating rows, hover highlight
-- Query badges: red (#fef2f2 bg, #dc2626 text)
-- Responsive resizer between panels
+| Section | Folder | Description |
+|---------|--------|-------------|
+| A | A_Planning | Planning & risk assessment |
+| B | B_Internal_Control | Internal control evaluation |
+| C | C_Assets | Assets testing (PPE, receivables, bank, inventory) |
+| D | D_Liabilities_Equity | Liabilities & equity testing |
+| E | E_Income_Statement | Revenue & expenses testing |
+| F | F_Completion | Going concern, subsequent events, related parties |
+| G | G_Outstanding | PBC items, queries, outstanding matters |
 
-## Reference
+## Variable System
 
-See `Clients/AWP_Guoan_Cable_FYE2025/audit_viewer.html` for working example.
+Variables use `{{variable_name}}` syntax in markdown files. Modifiers control formatting:
+
+| Modifier | Example | Output |
+|----------|---------|--------|
+| (none) | `{{revenue}}` | 1,234,567.00 |
+| `currency` | `{{revenue\|currency}}` | 1,234,567.00 |
+| `rm` | `{{revenue\|rm}}` | RM 1,234,567.00 |
+| `bracket` | `{{amount\|bracket}}` | (1,234.00) if negative |
+| `rm_bracket` | `{{amount\|rm_bracket}}` | RM (1,234.00) if negative |
+| `nil` | `{{amount\|nil}}` | NIL if zero |
+| `text` | `{{company_name\|text}}` | Plain text |
+| `raw` | `{{amount\|raw}}` | Raw number |
+
+Variables with a `formula` field are calculated and shown as read-only with formula breakdown.
+
+## Generation Instructions
+
+When generating viewer files for a client:
+
+1. Copy templates from VIEWER_TEMPLATE.md
+2. Replace all `[CLIENT_NAME]` placeholders with actual client name
+3. Replace `[COMPANY_NUMBER]` with registration number
+4. Replace `[FYE_DATE]` with financial year end date
+5. Replace `[REPORTING_FRAMEWORK]` with MPERS or MFRS
+6. Sidebar auto-discovers files from `/api/files` — no manual sections array update needed
+7. Populate `master_data.json` with client-specific variables
+8. Verify all 4 files are generated in the client's engagement folder
