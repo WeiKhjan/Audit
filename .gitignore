@@ -1,0 +1,13 @@
+# Client work folders - confidential, do not push
+Clients/
+
+# Claude Code config (exclude settings, include skills)
+.claude/*
+!.claude/skills/
+
+# Misc
+nul
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
