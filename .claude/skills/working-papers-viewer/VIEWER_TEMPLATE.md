@@ -53,8 +53,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             except json.JSONDecodeError:
                 self._send_json(400, {'error': 'Invalid JSON'})
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
 
         elif self.path == '/api/save':
             try:
@@ -76,7 +76,12 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                     self._send_json(400, {'error': 'Invalid filename'})
                     return
 
-                filepath = os.path.join(os.getcwd(), folder, filename)
+                filepath = os.path.normpath(os.path.join(os.getcwd(), folder, filename))
+
+                # Prevent path traversal - ensure resolved path stays within cwd
+                if not filepath.startswith(os.getcwd() + os.sep):
+                    self._send_json(403, {'error': 'Access denied'})
+                    return
 
                 # Only allow overwriting existing files
                 if not os.path.exists(filepath):
@@ -90,8 +95,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             except json.JSONDecodeError:
                 self._send_json(400, {'error': 'Invalid JSON'})
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
         else:
             self._send_json(405, {'error': 'Method not allowed'})
 
@@ -135,7 +140,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                         result = resp.read().decode('utf-8')
                         self.send_response(200)
                         self.send_header('Content-Type', 'application/json')
-                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.send_header('Access-Control-Allow-Origin', 'http://localhost:8000')
                         self.end_headers()
                         self.wfile.write(result.encode('utf-8'))
                 except urllib.error.HTTPError as e:
@@ -146,8 +151,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             except json.JSONDecodeError:
                 self._send_json(400, {'error': 'Invalid JSON'})
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
         else:
             self._send_json(405, {'error': 'Method not allowed'})
 
@@ -165,8 +170,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                         'variables': {},
                         'categories': {}
                     })
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
 
         elif self.path == '/api/files':
             try:
@@ -177,8 +182,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                             if fname.endswith('.md'):
                                 files.append({'folder': folder, 'file': fname})
                 self._send_json(200, {'files': files})
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
 
         elif self.path == '/api/skills':
             try:
@@ -200,8 +205,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                                     break
                             result.append({'id': name, 'name': heading, 'lines': lines})
                 self._send_json(200, {'skills': result})
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
 
         elif self.path.startswith('/api/skills/'):
             try:
@@ -209,16 +214,20 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                 if not re.match(r'^[a-z0-9-]+$', skill_id):
                     self._send_json(400, {'error': 'Invalid skill ID'})
                     return
-                skills_dir = os.path.join(os.getcwd(), '..', '..', '.claude', 'skills')
+                skills_dir = os.path.normpath(os.path.join(os.getcwd(), '..', '..', '.claude', 'skills'))
                 skill_file = os.path.normpath(os.path.join(skills_dir, skill_id, 'SKILL.md'))
+                # Prevent path traversal - ensure resolved path stays within skills_dir
+                if not skill_file.startswith(skills_dir + os.sep):
+                    self._send_json(403, {'error': 'Access denied'})
+                    return
                 if not os.path.isfile(skill_file):
                     self._send_json(404, {'error': 'Skill not found'})
                     return
                 with open(skill_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 self._send_json(200, {'id': skill_id, 'content': content})
-            except Exception as e:
-                self._send_json(500, {'error': str(e)})
+            except Exception:
+                self._send_json(500, {'error': 'Internal server error'})
         else:
             super().do_GET()
 
@@ -231,7 +240,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', 'http://localhost:8000')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
@@ -239,7 +248,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
     def _send_json(self, code, data):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', 'http://localhost:8000')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode('utf-8'))
 
@@ -251,7 +260,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     PORT = 8000
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    server = http.server.ThreadingHTTPServer(('', PORT), AuditViewerHandler)
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), AuditViewerHandler)
     print(f'Audit Viewer Server running on http://localhost:{PORT}')
     print(f'Serving files from: {os.getcwd()}')
     print('Press Ctrl+C to stop.')
@@ -342,6 +351,7 @@ if %errorlevel% neq 0 (
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
     <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1137,6 +1147,15 @@ if %errorlevel% neq 0 (
     </div>
 
 <script>
+// ========== SAFE MARKDOWN RENDERING ==========
+function safeParse(markdown) {
+    var raw = safeParse(markdown);
+    if (typeof DOMPurify !== 'undefined') {
+        return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-var', 'data-note-id', 'data-idx', 'data-folder', 'data-file', 'data-section', 'data-cat', 'data-tool-id', 'data-extra', 'data-skill'] });
+    }
+    return raw;
+}
+
 // ========== MASTER DATA VARIABLE SYSTEM ==========
 var masterData = null;
 var lastViewedFile = null;
@@ -1343,7 +1362,7 @@ function saveVariableInline(varName, newValue, varDef) {
         if (currentFile.content) {
             var scrollPos = document.getElementById('preview-content').scrollTop;
             var parsed = parseFileContent(currentFile.content);
-            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
+            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
             if (parsed.reviewNotes.length > 0) applyReviewNoteHighlights(parsed.reviewNotes);
             renderReviewNoteSummary(parsed.reviewNotes);
             renderSignoffPanel(parsed.signoff);
@@ -1673,7 +1692,7 @@ function loadFile(folder, filename, displayName) {
         .then(function(markdown) {
             currentFile.content = markdown;
             var parsed = parseFileContent(markdown);
-            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
+            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
             document.getElementById('edit-btn').style.display = 'flex';
             if (parsed.reviewNotes.length > 0) {
                 applyReviewNoteHighlights(parsed.reviewNotes);
@@ -1933,7 +1952,7 @@ function saveFile() {
     })
     .then(function() {
         currentFile.content = fullContent;
-        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(editedContent, true)));
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(editedContent, true)));
         if (parsed.reviewNotes.length > 0) applyReviewNoteHighlights(parsed.reviewNotes);
         renderReviewNoteSummary(parsed.reviewNotes);
         renderSignoffPanel(parsed.signoff);
@@ -2094,7 +2113,7 @@ function submitNewReviewNote() {
     .then(function(r) { if (!r.ok) throw new Error('Save failed'); return r.json(); })
     .then(function() {
         currentFile.content = fullContent;
-        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
         applyReviewNoteHighlights(parsed.reviewNotes);
         renderReviewNoteSummary(parsed.reviewNotes);
         renderSignoffPanel(parsed.signoff);
@@ -2182,7 +2201,7 @@ function saveAndRerender(parsed, modalId) {
     .then(function(r) { if (!r.ok) throw new Error('Save failed'); return r.json(); })
     .then(function() {
         currentFile.content = fullContent;
-        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
         if (parsed.reviewNotes.length > 0) applyReviewNoteHighlights(parsed.reviewNotes);
         renderReviewNoteSummary(parsed.reviewNotes);
         renderSignoffPanel(parsed.signoff);
@@ -2641,7 +2660,7 @@ async function downloadAllDocuments() {
                     loadedFiles.push({
                         section: sec.title, sectionId: sec.id, sectionIcon: sec.icon,
                         name: file.name, display: file.display, content: content,
-                        html: marked.parse(substituteVariables(content))
+                        html: safeParse(substituteVariables(content))
                     });
                 }
             } catch (e) { console.log('Could not load: ' + sec.id + '/' + file.name); }
@@ -2956,7 +2975,7 @@ function appendAIMessage(role, content) {
         div.textContent = content;
     } else if (role === 'assistant') {
         div.className = 'ai-msg ai-msg-assistant';
-        div.innerHTML = marked.parse(content);
+        div.innerHTML = safeParse(content);
     } else if (role === 'error') {
         div.className = 'ai-msg-error';
         div.textContent = content;
