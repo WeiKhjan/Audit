@@ -63,30 +63,48 @@ For each identified risk:
 
 ### Risk-to-Assertion Mapping Template
 
-For EVERY material account, map risks to specific assertions:
+For EVERY material account, map risks to specific assertions with justifications and AWP links:
 
-| Account | WP Ref | Assertion | Inherent Risk | Control Risk | RMM Level | Planned Response |
-|---------|--------|-----------|---------------|-------------|-----------|-----------------|
-| Trade Receivables | C6 | Existence | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Confirmation + subsequent receipts] |
-| Trade Receivables | C6 | Valuation | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Impairment/ECL assessment] |
-| Trade Receivables | C6 | Completeness | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Cutoff testing] |
-| Revenue | E1 | Occurrence | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Vouch sample to supporting docs] |
-| Revenue | E1 | Completeness | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Analytical review, cutoff testing] |
-| PPE | C1 | Existence | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Physical verification] |
-| PPE | C1 | Accuracy | [H/M/L] | [H/M/L] | [H/M/L] | [e.g., Recalculate depreciation] |
+| Account | WP Ref | Assertion | Inherent Risk | Inherent Risk Justification | Control Risk | RMM Level | Planned Response (with AWP Link) |
+|---------|--------|-----------|---------------|---------------------------|-------------|-----------|--------------------------------|
+| Trade Receivables | C6 | Existence | [H/M/L] | [e.g., "HIGH — 93% decline; borrower creditworthiness uncertain; core asset"] | [H/M/L] | [H/M/L] | [e.g., External confirmation + subsequent receipts → See [C6](#awp:C6)] |
+| Trade Receivables | C6 | Valuation | [H/M/L] | [e.g., "HIGH — MPERS incurred loss model; significant estimation; aging needed"] | [H/M/L] | [H/M/L] | [e.g., Impairment assessment → See [C6](#awp:C6)] |
+| Revenue | E1 | Occurrence | [H/M/L] | [e.g., "MEDIUM — simple model but ISA 240 fraud presumed; declining is consistent"] | [H/M/L] | [H/M/L] | [e.g., SAP + TOD combined → See [E1](#awp:E1)] |
+
+**MANDATORY:** Every row MUST have:
+1. A written justification in the "Inherent Risk Justification" column (not blank)
+2. A planned response that references the specific AWP section (e.g., "→ See [C6](#awp:C6)")
+3. Where SAP is the primary test method, indicate "SAP" or "SAP + TOD" in the planned response
+
+**Cross-reference format:** Planned responses MUST use `[REF](#awp:REF)` format for working paper cross-references (e.g., `→ See [C6](#awp:C6)`) to enable clickable navigation in the audit viewer.
 
 ### Risk Assessment Factors
 
-**Inherent Risk** factors per assertion:
-- Susceptibility to misstatement (complexity, subjectivity, estimation)
-- Volume and size of transactions
-- Prior year misstatements in same assertion
-- Industry/regulatory considerations
+**Inherent Risk** — MUST be justified per assertion with specific engagement factors:
 
-**Control Risk** factors:
-- Relevant controls identified and operating effectively → Lower control risk
-- No relevant controls / controls not tested → Maximum control risk (for substantive-only approach)
-- Control deficiencies identified → Elevated control risk
+| Inherent Risk Level | Criteria (document at least 2 factors per assessment) |
+|--------------------|----------------------------------------------------|
+| **HIGH** | Susceptibility to material misstatement is elevated due to: complexity/subjectivity of the balance; significant YoY movements (>30%); related party involvement; estimation uncertainty; fraud risk indicators; regulatory sensitivity; prior period misstatements |
+| **MEDIUM** | Moderate susceptibility: some complexity but largely verifiable; moderate movements; standard calculations with limited estimation; single data source |
+| **LOW** | Low susceptibility: routine, recurring, predictable amounts; independently verifiable (SAP-suitable); small balances; standard calculations with no estimation; no unusual movements |
+
+Every inherent risk assessment MUST include a **written justification** explaining WHY that level was chosen, referencing specific engagement facts (e.g., "HIGH — 93% decline in receivables; borrower creditworthiness uncertain; core asset of money lending business").
+
+**Control Risk** — document the overall assessment and rationale:
+
+For **small/owner-managed entities** using a fully substantive approach:
+> "Control risk is assessed as HIGH for ALL assertions. [Entity name] is a small owner-managed entity with no segregation of duties, no formal internal control system, and no internal audit function. No tests of controls are performed; a fully substantive audit approach is adopted per ISA 330.8."
+
+For entities where controls are tested:
+> Document: (1) which controls were tested, (2) results of testing, (3) resulting control risk assessment per assertion.
+
+**RMM (Risk of Material Misstatement)** = function of inherent risk × control risk:
+
+| Inherent Risk | Control Risk HIGH | Control Risk MEDIUM | Control Risk LOW |
+|--------------|------------------|--------------------|-----------------|
+| HIGH | **HIGH** | HIGH | MEDIUM |
+| MEDIUM | MEDIUM | MEDIUM | LOW |
+| LOW | LOW | LOW | LOW |
 
 ### Significant Risks (ISA 315.28)
 
@@ -163,11 +181,10 @@ Document the engagement team discussion on fraud risks:
 
 For each risk identified in the risk assessment, document the specific response:
 
-| A4 Risk Ref | Risk Description | RMM Level | Nature of Response | Timing | Extent | WP Ref |
-|------------|-----------------|-----------|-------------------|--------|--------|--------|
-| [e.g., C6-1] | [e.g., Existence of receivables] | HIGH | [e.g., External confirmation + subsequent receipts] | [Year-end] | [100% of material balances] | [C6 Proc 3, 4] |
-| [e.g., C6-2] | [e.g., Valuation of receivables] | HIGH | [e.g., Impairment assessment, aging review] | [Year-end] | [All balances > PM] | [C6 Proc 5] |
-| [e.g., E1-1] | [e.g., Revenue occurrence] | MEDIUM | [e.g., Vouch sample to supporting docs] | [Year-end] | [Sample per ISA 530] | [E1 Proc 3] |
+| A4 Risk Ref | Risk Description | RMM Level | Nature of Response | Test Method | Timing | Extent | WP Ref |
+|------------|-----------------|-----------|-------------------|------------|--------|--------|--------|
+| [e.g., C6-EX] | [e.g., Existence of receivables] | HIGH | [e.g., External confirmation + subsequent receipts] | TOD | [Year-end] | [100% of material balances] | [C6](#awp:C6) |
+| [e.g., E4-OCC] | [e.g., Expense occurrence] | LOW | [e.g., SAP for recurring items; vouch one-offs] | SAP + TOD | [Year-end] | [SAP: all recurring; TOD: sample one-offs] | [E4](#awp:E4) |
 
 ### Response Design Requirements
 

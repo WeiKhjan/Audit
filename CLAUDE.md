@@ -96,6 +96,9 @@ For every accounting estimate in the financial statements:
 ### Risk Assessment Requirements (ISA 315)
 
 - Risks must be assessed at the **assertion level** (not just account level)
+- **Every inherent risk assessment** must include a written justification citing specific engagement facts (e.g., "HIGH — 93% decline; borrower creditworthiness uncertain")
+- **Control risk rationale** must be documented — for fully substantive audits: "Control risk = HIGH for ALL assertions; no tests of controls performed per ISA 330.8"
+- **Planned responses** must link to specific AWP references (e.g., "→ See **C6**") and indicate test method (SAP, TOD, or SAP + TOD combined)
 - **Significant risks** must be identified with specific enhanced procedures
-- Risk assessment must include a **risk-to-procedure traceability matrix**
+- Risk assessment must include a **risk-to-procedure traceability matrix** with Test Method column (SAP/TOD/Combined)
 - Every HIGH risk must document: specific nature, timing, and extent of the planned response
