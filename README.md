@@ -82,6 +82,8 @@ npm install -g @anthropic-ai/claude-code
    | `/materiality` | Calculate planning/performance materiality |
    | `/risk-assessment` | Perform risk assessment and identify red flags |
    | `/awp [area]` | Generate audit working papers (PPE, bank, receivables, etc.) |
+   | `/sampling [area]` | Generate ISA 530 audit sampling papers (MUS calculation, selection, evaluation) |
+   | `/templates [type]` | Generate audit letters & document templates (engagement letter, confirmations, MRL, etc.) |
    | `/fs [component]` | Draft financial statements (SOFP, SOCI, notes) |
    | `/pbc [action]` | Manage PBC checklist |
    | `/query [action]` | Manage audit queries |
@@ -105,23 +107,38 @@ Pilot - Audit - Claude/
 ├── .claude/
 │   ├── settings.local.json       # Claude Code permissions
 │   └── skills/                   # Custom audit skills
-│       ├── audit-working-papers/
-│       ├── financial-statements/
-│       ├── materiality-assessment/
-│       ├── pbc-query-management/
-│       ├── risk-assessment/
-│       └── working-papers-viewer/
-└── Clients/
+│       ├── audit-working-papers/ # /awp — working papers with SAP & TOD framework
+│       ├── audit-sampling/       # /sampling — ISA 530 MUS sampling
+│       ├── audit-templates/      # /templates — letters & confirmations (T1-T16)
+│       ├── financial-statements/ # /fs — MPERS/MFRS financial statements
+│       ├── materiality-assessment/ # /materiality — PM, PerfM, trivial threshold
+│       ├── pbc-query-management/ # /pbc, /query — PBC & audit query tracking
+│       ├── risk-assessment/      # /risk-assessment — ISA 315 risk assessment
+│       └── working-papers-viewer/ # /viewer — interactive HTML viewer
+└── Clients/                      # (gitignored — confidential client data)
     └── AWP_<ClientName>_FYE<Year>/
         ├── server.py             # Local HTTP server
-        ├── audit_viewer.html     # Interactive viewer
+        ├── audit_viewer.html     # Interactive viewer with AI chat
         ├── START_VIEWER.bat      # Windows launcher
-        ├── master_data.json      # Client variables
-        ├── A_Planning/           # Planning & risk
-        ├── B_Internal_Control/   # Control evaluation
-        ├── C_Assets/             # Asset testing
-        ├── D_Liabilities_Equity/ # Liability & equity
-        ├── E_Income_Statement/   # Income & expense
-        ├── F_Completion/         # Completion & review
-        └── G_Outstanding/        # Outstanding items
+        ├── master_data.json      # Client variables ({{placeholders}})
+        ├── 00_Index.md           # Working papers index & status dashboard
+        ├── A_Planning/           # A1-A8: Planning, risk, materiality, strategy
+        ├── B_Internal_Control/   # B1: ICQ, B2: Journal entry testing (ISA 240)
+        ├── C_Assets/             # C1-C10: PPE, receivables, cash, etc.
+        ├── D_Liabilities_Equity/ # D1-D12: Share capital, payables, tax, etc.
+        ├── E_Income_Statement/   # E1-E8: Revenue (SAP+TOD), expenses (SAP/TOD)
+        ├── F_Completion/         # F1-F9: Going concern, subsequent events, report
+        ├── G_Financial_Statements/ # G1-G3: Directors' report, SOFP, SOCI
+        └── T_Templates/          # T1-T16: Letters, confirmations, MRL, adjustments
 ```
+
+## Key Features
+
+- **Substantive Analytical Procedures (SAP)** — auto-computes expected amounts for predictable items (salaries × 12, EPF at statutory rate, depreciation from FAR) and compares to GL. Threshold = MAX(Performance Materiality, 5% of line item)
+- **GL-Driven Auto-Population** — when the General Ledger is available, SAP tables and journal entry testing are populated automatically from source data
+- **Journal Entry Testing (ISA 240)** — mandatory B2 working paper with 10 fraud risk selection criteria, estimate bias review, and unusual transaction evaluation
+- **Clickable Cross-References** — working paper references (e.g., "See C6") are clickable links in the viewer, navigating directly to the referenced paper
+- **16 Template Letters (T1-T16)** — engagement letter, bank/debtor/creditor/director/legal confirmations, MRL, director support letter, audit adjustments summaries, directors' remuneration & shareholding confirmations
+- **ISA 530 Audit Sampling** — MUS calculation, systematic selection, and evaluation framework
+- **`{{variable}}` Placeholder System** — all monetary figures use placeholders from `master_data.json`, resolved at render time in the viewer
+- **Interactive Viewer** — single-page HTML app with markdown rendering, variable resolution, sidebar navigation, and AI-powered audit assistant chat
