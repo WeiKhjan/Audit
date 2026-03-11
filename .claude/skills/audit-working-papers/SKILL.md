@@ -56,7 +56,18 @@ SECTION G - FINANCIAL STATEMENTS (DRAFT)
 SECTION H - ENGAGEMENT TRACKER
   H1 - PBC Checklist & Tracker    H2 - Audit Query Log
   H3 - Engagement Status Dashboard
+
+SECTION T - TEMPLATES & LETTERS
+  T1 - Engagement Letter           T2 - PBC Request Letter
+  T3 - Management Letter           T4 - Bank Confirmation
+  T5 - Bank Authorization          T6 - Debtor Confirmation
+  T7 - Creditor Confirmation       T8 - Director/RP Confirmation
+  T9 - Legal Confirmation          T10 - Stock Confirmation
+  T11 - Management Representation  T12 - Director Support Letter
+  T13 - Audit Adjustments Summary  T14 - Uncorrected Differences
 ```
+
+After generating working papers, run `/templates all` to generate all required letters and document templates.
 
 ## Lead Schedule Format
 
@@ -336,6 +347,21 @@ Clients/AWP_[Client]_FYE[Year]/
 │   ├── H1_PBC_Checklist.md
 │   ├── H2_Query_Log.md
 │   └── H3_Engagement_Dashboard.md
+├── T_Templates/
+│   ├── T1_Engagement_Letter.md
+│   ├── T2_PBC_Request_Letter.md
+│   ├── T3_Management_Letter.md
+│   ├── T4_Bank_Confirmation.md
+│   ├── T5_Bank_Authorization.md
+│   ├── T6_Debtor_Confirmation.md
+│   ├── T7_Creditor_Confirmation.md
+│   ├── T8_Director_Confirmation.md
+│   ├── T9_Legal_Confirmation.md
+│   ├── T10_Stock_Confirmation.md
+│   ├── T11_Management_Representation.md
+│   ├── T12_Director_Support_Letter.md
+│   ├── T13_Summary_Audit_Adjustments.md
+│   └── T14_Summary_Uncorrected_Differences.md
 ├── 00_Index.md
 ├── master_data.json
 ├── server.py

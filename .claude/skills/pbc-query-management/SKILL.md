@@ -18,6 +18,12 @@ As at: [Current Date]
 | 1  | C1.3    | [Description]     | [Name]    | [Date]      | [Response]      | Open   |                 |
 ```
 
+## Formal PBC Request Letter
+
+When generating the H1 PBC Checklist, the formal PBC request letter (T2) is available via `/templates T2`. The T2 template auto-populates the document list from H1 and provides a ready-to-sign letter addressed to the directors requesting all PBC items with a specified deadline.
+
+---
+
 ## PBC Checklist Categories
 
 ### Statutory Documents
