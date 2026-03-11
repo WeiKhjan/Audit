@@ -32,9 +32,10 @@ All client work MUST go under `Clients/`. Structure: `Clients/AWP_[ClientName]_F
 | `/pbc [action]` | Manage PBC checklist (generate, status, missing) |
 | `/query [action]` | Manage audit queries (add, list, update) |
 | `/materiality` | Calculate planning/performance materiality |
-| `/risk-assessment` | Perform risk assessment and identify red flags |
+| `/risk-assessment` | ISA 315 risk assessment — assertion-level mapping, red flags |
+| `/fraud-risk` | ISA 240 fraud procedures + ISA 330 risk-response design |
 | `/sampling [area]` | Generate ISA 530 audit sampling working papers (MUS calculation, selection, evaluation) |
-| `/templates [type]` | Generate standard audit letters & document templates (engagement, confirmations, MRL, etc.) |
+| `/templates [type]` | Generate .docx audit letters & templates with embedded document tracking (engagement, confirmations, MRL, etc.) |
 | `/skill-creation` | Guide for creating new skills |
 
 ## Professional Standards
@@ -45,60 +46,21 @@ All client work MUST go under `Clients/`. Structure: `Clients/AWP_[ClientName]_F
 - Clear conclusion on each audit area
 - Document all issues with resolution
 
-## ISA Compliance Requirements
+## ISA Compliance — Quick Reference
 
-### Mandatory for ALL Working Papers
+Detailed requirements are in each skill. Key mandatories:
 
-Every working paper generated via `/awp` MUST include:
-
-1. **Assertion-level testing table** — conclusion per assertion (Existence, Completeness, Accuracy/Valuation, Rights/Obligations, Presentation/Classification)
-2. **Risk linkage to A4** — "Risks Addressed: [A4 ref]" with planned vs actual response
-3. **Evidence quality documentation** — type, source, reliability, sufficiency of evidence obtained
-4. **Clear conclusion** — not "pending" or "unable to conclude" without a documented remediation plan (what PBC is needed, timeline, impact on report if not received)
-
-### Mandatory External Confirmations (ISA 505)
-
-- **Bank confirmations** for ALL bank accounts — no exceptions
-- **Debtor/borrower confirmations** for material receivable balances
-- **Creditor confirmations** for material payable balances (completeness assertion)
-- **Related party balance confirmations** for material RPT balances
-- **Legal confirmations** when litigation or claims exist or are suspected
-- If confirmation not received: document alternative procedures performed and evaluate sufficiency
-
-### Mandatory Estimate Verification (ISA 540)
-
-For every accounting estimate in the financial statements:
-- **Independent recalculation** of the estimate
-- **Tax computation verification** — verify or prepare tax computation for current year
-- **Impairment/ECL assessment** for receivables — incurred loss (MPERS) or ECL (MFRS 9)
-- **Depreciation review** — useful life, residual value, method appropriateness
-- **Deferred tax recalculation** — temporary differences and applicable rate
-- Document: management's method → auditor evaluation → independent estimate → conclusion
-
-### Mandatory Completion Procedures
-
-- **A1 Engagement Letter** must be signed BEFORE substantive work begins
-- **F7 Management Representation Letter** must be obtained before issuing audit opinion
-- **F8 Completion Checklist** must be fully cleared before F9 audit report is finalized
-- **All engagements must have T1-T16 templates generated** via `/templates all` — engagement letter, confirmations, MRL, director support letter, audit differences summaries, and director remuneration/shareholding confirmations
-- **All reviewer sign-offs** must be completed on every working paper
-- **F1 Going Concern** must include an audit report impact decision matrix
-- **F2 Subsequent Events** must cover both adjusting and non-adjusting events with structured procedures
-- **F3 Related Parties** must include party identification, transaction identification, arm's length assessment, and MPERS S33 disclosure checklist
-
-### Mandatory Fraud Procedures (ISA 240)
-
-- **Revenue recognition fraud risk** is always presumed unless explicitly rebutted with documented rationale
-- **Management override** is always a fraud risk (cannot be rebutted)
-- **Journal entry testing** must be performed on every engagement
-- **Engagement team fraud discussion** must be documented
-
-### Risk Assessment Requirements (ISA 315)
-
-- Risks must be assessed at the **assertion level** (not just account level)
-- **Every inherent risk assessment** must include a written justification citing specific engagement facts (e.g., "HIGH — 93% decline; borrower creditworthiness uncertain")
-- **Control risk rationale** must be documented — for fully substantive audits: "Control risk = HIGH for ALL assertions; no tests of controls performed per ISA 330.8"
-- **Planned responses** must link to specific AWP references (e.g., "→ See **C6**") and indicate test method (SAP, TOD, or SAP + TOD combined)
-- **Significant risks** must be identified with specific enhanced procedures
-- Risk assessment must include a **risk-to-procedure traceability matrix** with Test Method column (SAP/TOD/Combined)
-- Every HIGH risk must document: specific nature, timing, and extent of the planned response
+| Requirement | ISA | Skill |
+|-------------|-----|-------|
+| Assertion-level testing table on every WP | ISA 315 | `/awp` |
+| Risk linkage to A4 on every WP | ISA 330 | `/awp` |
+| Evidence quality documentation on every WP | ISA 500 | `/awp` |
+| External confirmations (bank, debtor, creditor, RPT, legal) | ISA 505 | `/templates` |
+| Estimate verification (tax, impairment, depreciation, deferred tax) | ISA 540 | `/awp` |
+| Revenue fraud risk presumed; management override always a risk | ISA 240 | `/fraud-risk` |
+| Journal entry testing on every engagement | ISA 240 | `/fraud-risk` |
+| Assertion-level risk assessment with written justifications | ISA 315 | `/risk-assessment` |
+| Risk-to-procedure traceability matrix | ISA 330 | `/fraud-risk` |
+| T1-T16 .docx templates generated via `/templates all` | Various | `/templates` |
+| A1 signed before substantive work; F7 before opinion; F8 fully cleared | ISA 210/580 | `/awp` |
+| Going concern impact matrix; subsequent events procedures | ISA 570/560 | `/awp` |

@@ -32,6 +32,8 @@ All templates are in `VIEWER_TEMPLATE.md` in this skill folder. The template con
    - `GET /api/master` - Read master_data.json
    - `PUT /api/master` - Save master data with timestamp
    - `PUT /api/save` - Save edited markdown files
+   - `PUT /api/upload` - Upload .docx/.pdf files (base64 encoded)
+   - `GET /api/attachments` - List all .docx/.pdf files across section folders
    - `POST /api/chat` - Proxy to Anthropic API (tool-use support)
    - `GET /api/files` - List all markdown files
    - `GET /api/skills` / `GET /api/skills/{id}` - Read skill documents
@@ -56,8 +58,27 @@ All templates are in `VIEWER_TEMPLATE.md` in this skill folder. The template con
    - Bulk sign-off
    - Download All (standalone offline HTML)
    - AI chat agent (tool-use, skills integration)
+   - Attachment cards for embedded .docx/.pdf documents
+   - Document status tracking (unsigned → sent → signed)
+   - WYSIWYG document preview (docx-preview + JSZip for .docx, pdf.js for .pdf)
+   - Upload signed PDF directly from attachment card
+   - H1 auto-summary of all document statuses across WPs
    - Search with Ctrl+F shortcut
    - Draggable resizer
+
+## CDN Dependencies
+
+The viewer loads these libraries from CDN (no npm install needed):
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| Toast UI Editor | 3.2.2 | WYSIWYG markdown editing |
+| Marked.js | Latest | Markdown to HTML rendering |
+| pdf.js | 3.11.174 | PDF page rendering for signed document previews |
+| JSZip | 3.10.1 | Required by docx-preview to unzip .docx files |
+| docx-preview | 0.3.3 | Renders .docx files as HTML for WYSIWYG preview |
+
+**Load order matters:** JSZip must be loaded before docx-preview.
 
 4. **`master_data.json`** - Variable store:
    - Company identity (name, reg no, FYE, framework)

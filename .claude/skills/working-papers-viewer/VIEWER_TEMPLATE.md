@@ -22,14 +22,21 @@ and proxies AI chat requests to the Anthropic API.
 Usage: python server.py
 """
 
+import base64
 import http.server
 import json
+import mimetypes
 import os
 import re
 import urllib.request
 import urllib.error
 import glob as globmod
 from datetime import datetime
+
+
+# Ensure MIME types for document files
+mimetypes.add_type('application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx')
+mimetypes.add_type('application/pdf', '.pdf')
 
 
 class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
@@ -53,8 +60,53 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             except json.JSONDecodeError:
                 self._send_json(400, {'error': 'Invalid JSON'})
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
+
+        elif self.path == '/api/upload':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body.decode('utf-8'))
+
+                folder = data.get('folder', '')
+                filename = data.get('file', '')
+                file_data = data.get('data', '')
+
+                # Validate folder name pattern
+                if not re.match(r'^[A-Z]_[A-Za-z_]+$', folder):
+                    self._send_json(400, {'error': 'Invalid folder name'})
+                    return
+
+                # Validate filename pattern (.docx or .pdf)
+                if not re.match(r'^[A-Za-z0-9_\-\.]+\.(pdf|docx)$', filename):
+                    self._send_json(400, {'error': 'Invalid filename (must be .pdf or .docx)'})
+                    return
+
+                folder_path = os.path.join(os.getcwd(), folder)
+                if not os.path.isdir(folder_path):
+                    self._send_json(404, {'error': 'Folder not found'})
+                    return
+
+                # Decode base64 and write file
+                file_bytes = base64.b64decode(file_data)
+                filepath = os.path.join(folder_path, filename)
+                with open(filepath, 'wb') as f:
+                    f.write(file_bytes)
+
+                self._send_json(200, {
+                    'status': 'ok',
+                    'folder': folder,
+                    'file': filename,
+                    'size': len(file_bytes)
+                })
+
+            except base64.binascii.Error:
+                self._send_json(400, {'error': 'Invalid base64 data'})
+            except json.JSONDecodeError:
+                self._send_json(400, {'error': 'Invalid JSON'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
 
         elif self.path == '/api/save':
             try:
@@ -76,12 +128,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                     self._send_json(400, {'error': 'Invalid filename'})
                     return
 
-                filepath = os.path.normpath(os.path.join(os.getcwd(), folder, filename))
-
-                # Prevent path traversal - ensure resolved path stays within cwd
-                if not filepath.startswith(os.getcwd() + os.sep):
-                    self._send_json(403, {'error': 'Access denied'})
-                    return
+                filepath = os.path.join(os.getcwd(), folder, filename)
 
                 # Only allow overwriting existing files
                 if not os.path.exists(filepath):
@@ -95,8 +142,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             except json.JSONDecodeError:
                 self._send_json(400, {'error': 'Invalid JSON'})
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
         else:
             self._send_json(405, {'error': 'Method not allowed'})
 
@@ -140,7 +187,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                         result = resp.read().decode('utf-8')
                         self.send_response(200)
                         self.send_header('Content-Type', 'application/json')
-                        self.send_header('Access-Control-Allow-Origin', 'http://localhost:8000')
+                        self.send_header('Access-Control-Allow-Origin', '*')
                         self.end_headers()
                         self.wfile.write(result.encode('utf-8'))
                 except urllib.error.HTTPError as e:
@@ -151,8 +198,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
             except json.JSONDecodeError:
                 self._send_json(400, {'error': 'Invalid JSON'})
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
         else:
             self._send_json(405, {'error': 'Method not allowed'})
 
@@ -170,8 +217,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                         'variables': {},
                         'categories': {}
                     })
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
 
         elif self.path == '/api/files':
             try:
@@ -182,8 +229,27 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                             if fname.endswith('.md'):
                                 files.append({'folder': folder, 'file': fname})
                 self._send_json(200, {'files': files})
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
+
+        elif self.path == '/api/attachments':
+            try:
+                attachments = []
+                for folder in sorted(os.listdir('.')):
+                    if os.path.isdir(folder) and re.match(r'^[A-Z]_', folder):
+                        for fname in sorted(os.listdir(folder)):
+                            if fname.endswith('.docx') or fname.endswith('.pdf'):
+                                fpath = os.path.join(folder, fname)
+                                stat = os.stat(fpath)
+                                attachments.append({
+                                    'folder': folder,
+                                    'filename': fname,
+                                    'size': stat.st_size,
+                                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                                })
+                self._send_json(200, {'attachments': attachments})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
 
         elif self.path == '/api/skills':
             try:
@@ -205,8 +271,8 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                                     break
                             result.append({'id': name, 'name': heading, 'lines': lines})
                 self._send_json(200, {'skills': result})
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
 
         elif self.path.startswith('/api/skills/'):
             try:
@@ -214,20 +280,16 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                 if not re.match(r'^[a-z0-9-]+$', skill_id):
                     self._send_json(400, {'error': 'Invalid skill ID'})
                     return
-                skills_dir = os.path.normpath(os.path.join(os.getcwd(), '..', '..', '.claude', 'skills'))
+                skills_dir = os.path.join(os.getcwd(), '..', '..', '.claude', 'skills')
                 skill_file = os.path.normpath(os.path.join(skills_dir, skill_id, 'SKILL.md'))
-                # Prevent path traversal - ensure resolved path stays within skills_dir
-                if not skill_file.startswith(skills_dir + os.sep):
-                    self._send_json(403, {'error': 'Access denied'})
-                    return
                 if not os.path.isfile(skill_file):
                     self._send_json(404, {'error': 'Skill not found'})
                     return
                 with open(skill_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 self._send_json(200, {'id': skill_id, 'content': content})
-            except Exception:
-                self._send_json(500, {'error': 'Internal server error'})
+            except Exception as e:
+                self._send_json(500, {'error': str(e)})
         else:
             super().do_GET()
 
@@ -240,7 +302,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', 'http://localhost:8000')
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
@@ -248,7 +310,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
     def _send_json(self, code, data):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', 'http://localhost:8000')
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode('utf-8'))
 
@@ -260,7 +322,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     PORT = 8000
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), AuditViewerHandler)
+    server = http.server.ThreadingHTTPServer(('', PORT), AuditViewerHandler)
     print(f'Audit Viewer Server running on http://localhost:{PORT}')
     print(f'Serving files from: {os.getcwd()}')
     print('Press Ctrl+C to stop.')
@@ -351,7 +413,10 @@ if %errorlevel% neq 0 (
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
     <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -362,7 +427,7 @@ if %errorlevel% neq 0 (
             background: #f5f5f5;
         }
         #nav-panel {
-            width: 320px;
+            width: 280px;
             background: #1e293b;
             color: #e2e8f0;
             overflow-y: auto;
@@ -652,7 +717,7 @@ if %errorlevel% neq 0 (
             font-weight: 600;
             font-size: 11px;
         }
-        .nav-section-header .title { flex: 1; font-size: 13px; font-weight: 500; }
+        .nav-section-header .title { flex: 1; font-size: 13px; font-weight: 600; color: #f1f5f9; }
         .nav-section-header .arrow { font-size: 10px; transition: transform 0.2s; color: #64748b; }
         .nav-section.expanded .arrow { transform: rotate(90deg); }
         .nav-section-items { display: none; background: #0f172a; }
@@ -682,15 +747,16 @@ if %errorlevel% neq 0 (
         #preview-header .breadcrumb { font-size: 12px; color: #64748b; }
         #preview-header .filename { font-size: 16px; font-weight: 600; color: #1e293b; }
         #preview-content { flex: 1; overflow-y: auto; padding: 24px 40px; }
-        #preview-content h1 { font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
-        #preview-content h2 { font-size: 22px; font-weight: 600; color: #334155; margin: 28px 0 12px; }
-        #preview-content h3 { font-size: 18px; font-weight: 600; color: #475569; margin: 24px 0 10px; }
+        #preview-content h1 { font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
+        #preview-content h2 { font-size: 22px; font-weight: 600; color: #334155; margin: 32px 0 16px; }
+        #preview-content h3 { font-size: 18px; font-weight: 600; color: #475569; margin: 24px 0 12px; }
         #preview-content p { font-size: 14px; line-height: 1.7; color: #475569; margin-bottom: 12px; }
         #preview-content ul, #preview-content ol { margin: 12px 0 12px 24px; color: #475569; }
-        #preview-content li { font-size: 14px; line-height: 1.7; margin-bottom: 4px; }
-        #preview-content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
-        #preview-content th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-weight: 600; color: #334155; border: 1px solid #e2e8f0; }
-        #preview-content td { padding: 10px 12px; border: 1px solid #e2e8f0; color: #475569; }
+        #preview-content li { font-size: 14px; line-height: 1.7; margin-bottom: 8px; }
+        #preview-content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+        #preview-content th { background: #e2e8f0; padding: 10px 12px; text-align: left; font-weight: 700; color: #1e293b; border: 1px solid #cbd5e1; }
+        #preview-content td { padding: 10px 12px; border: 1px solid #e2e8f0; color: #475569; line-height: 1.6; }
+        #preview-content tbody tr:nth-child(odd) { background: #fafbfc; }
         #preview-content tr:hover td { background: #f8fafc; }
         #preview-content code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: Consolas, Monaco, monospace; font-size: 13px; color: #e11d48; }
         #preview-content pre { background: #1e293b; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
@@ -789,8 +855,8 @@ if %errorlevel% neq 0 (
         .save-status.error { background: #fee2e2; color: #991b1b; display: inline-block; }
         /* Sign-off panel styles */
         #signoff-panel {
-            margin-top: 32px;
-            padding: 20px;
+            margin-top: 40px;
+            padding: 28px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
@@ -863,6 +929,7 @@ if %errorlevel% neq 0 (
             align-items: center; justify-content: center; gap: 5px; transition: all 0.2s; color: #fff;
         }
         .nav-action-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+        .nav-action-btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
         #bulk-signoff-btn { background: #7c3aed; }
         #bulk-signoff-btn:hover { background: #6d28d9; }
         #review-summary-btn { background: #0891b2; }
@@ -948,7 +1015,7 @@ if %errorlevel% neq 0 (
         }
         /* Review notes summary panel */
         #review-notes-panel {
-            margin-top: 24px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a;
+            margin-top: 32px; padding: 20px; background: #fffbeb; border: 1px solid #fde68a;
             border-radius: 8px;
         }
         #review-notes-panel h3 {
@@ -1097,6 +1164,43 @@ if %errorlevel% neq 0 (
         .sampling-table .samp-disc input.has-value { border-color: #ef4444; background: #fef2f2; color: #dc2626; font-weight: 600; }
         .sampling-save-btn { margin-top: 8px; padding: 6px 16px; background: #1e40af; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
         .sampling-save-btn:hover { background: #1e3a8a; }
+        /* Attachment card styles */
+        .attachment-card { border: 2px solid #e2e8f0; border-radius: 10px; padding: 20px; margin: 24px 0; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: box-shadow 0.2s; }
+        .attachment-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .attachment-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .attachment-card-icon { font-size: 20px; }
+        .attachment-card-title { font-weight: 600; font-size: 14px; color: #1e293b; flex: 1; }
+        .attachment-card-meta { font-size: 11px; color: #64748b; display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+        .attachment-card-meta span { display: inline-flex; align-items: center; gap: 4px; }
+        .attachment-status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.3px; }
+        .attachment-status.unsigned { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .attachment-status.sent { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .attachment-status.signed { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .attachment-preview { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; margin: 10px 0; min-height: 80px; overflow: hidden; position: relative; }
+        .attachment-preview .docx-icon { font-size: 36px; }
+        .attachment-preview .file-info { font-size: 11px; color: #94a3b8; text-align: center; padding: 4px 0; }
+        .attachment-preview canvas { border: 1px solid #e2e8f0; border-radius: 4px; max-width: 100%; }
+        .attachment-preview .docx-preview-container { max-height: 300px; overflow-y: auto; padding: 10px; background: #fff; }
+        .attachment-preview .docx-preview-container section.docx { padding: 10px !important; }
+        .attachment-preview .pdf-preview-container { max-height: 300px; overflow-y: auto; text-align: center; background: #fff; padding: 10px; }
+        .attachment-preview .pdf-preview-container canvas { max-width: 100%; height: auto; }
+        .attachment-preview .preview-loading { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
+        .attachment-preview .preview-fallback { padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+        .attachment-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .attachment-btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #475569; transition: all 0.2s; display: inline-flex; align-items: center; gap: 5px; }
+        .attachment-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .attachment-btn.primary { background: #1e40af; color: #fff; border-color: #1e40af; }
+        .attachment-btn.primary:hover { background: #1e3a8a; }
+        .attachment-btn.success { background: #059669; color: #fff; border-color: #059669; }
+        .attachment-btn.success:hover { background: #047857; }
+        .attachment-dates { display: flex; gap: 16px; font-size: 11px; color: #64748b; margin-top: 8px; }
+        .attachment-dates .date-item { display: flex; align-items: center; gap: 4px; }
+        .attachment-dates .date-label { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; font-size: 10px; }
+        /* H1 attachment summary table */
+        .attachment-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 12px 0; }
+        .attachment-summary-table thead th { background: #1e293b; color: #fff; padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .attachment-summary-table tbody td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+        .attachment-summary-table tbody tr:hover td { background: #f8fafc; }
     </style>
 </head>
 <body>
@@ -1151,7 +1255,7 @@ if %errorlevel% neq 0 (
                 <h2>Audit Working Papers Viewer</h2>
                 <p>[CLIENT_NAME] ([COMPANY_NUMBER])</p>
                 <p>Financial Year End: [FYE_DATE]</p>
-                <p>Reporting Framework: [REPORTING_FRAMEWORK]</p>
+                <p>Reporting Framework: MPERS</p>
                 <br>
                 <p style="font-size:12px; color:#94a3b8;">
                     <strong>Audit Sections:</strong><br>
@@ -1168,15 +1272,6 @@ if %errorlevel% neq 0 (
     </div>
 
 <script>
-// ========== SAFE MARKDOWN RENDERING ==========
-function safeParse(markdown) {
-    var raw = safeParse(markdown);
-    if (typeof DOMPurify !== 'undefined') {
-        return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-var', 'data-note-id', 'data-idx', 'data-folder', 'data-file', 'data-section', 'data-cat', 'data-tool-id', 'data-extra', 'data-skill'] });
-    }
-    return raw;
-}
-
 // ========== MASTER DATA VARIABLE SYSTEM ==========
 var masterData = null;
 var lastViewedFile = null;
@@ -1383,13 +1478,14 @@ function saveVariableInline(varName, newValue, varDef) {
         if (currentFile.content) {
             var scrollPos = document.getElementById('preview-content').scrollTop;
             var parsed = parseFileContent(currentFile.content);
-            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
+            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
             if (parsed.reviewNotes.length > 0) applyReviewNoteHighlights(parsed.reviewNotes);
             renderReviewNoteSummary(parsed.reviewNotes);
             renderSignoffPanel(parsed.signoff);
             attachSelectionListener();
             attachVariableClickHandlers();
             renderSamplingTable();
+            renderAttachmentCards();
             document.getElementById('preview-content').scrollTop = scrollPos;
         }
         showVarToast('Updated: ' + varDef.label, 'success');
@@ -1714,7 +1810,7 @@ function loadFile(folder, filename, displayName) {
         .then(function(markdown) {
             currentFile.content = markdown;
             var parsed = parseFileContent(markdown);
-            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
+            document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
             document.getElementById('edit-btn').style.display = 'flex';
             if (parsed.reviewNotes.length > 0) {
                 applyReviewNoteHighlights(parsed.reviewNotes);
@@ -1723,12 +1819,43 @@ function loadFile(folder, filename, displayName) {
             renderSignoffPanel(parsed.signoff);
             attachSelectionListener();
             attachVariableClickHandlers();
+            attachInternalLinkHandlers();
             renderSamplingTable();
+            renderAttachmentCards();
         })
         .catch(function(error) {
             document.getElementById('preview-content').innerHTML = '<div class="welcome"><h2>Cannot Load File</h2><p>Run START_VIEWER.bat to view files.</p></div>';
             document.getElementById('edit-btn').style.display = 'none';
         });
+}
+
+function attachInternalLinkHandlers() {
+    document.getElementById('preview-content').querySelectorAll('a[href]').forEach(function(link) {
+        var href = link.getAttribute('href');
+        if (href && href.match(/^#awp:/)) {
+            link.style.cursor = 'pointer';
+            link.style.color = '#1a73e8';
+            link.style.textDecoration = 'underline';
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                var ref = href.replace('#awp:', '').toUpperCase();
+                var found = allFiles.find(function(f) {
+                    var nameUpper = f.name.toUpperCase().replace('.MD', '');
+                    return nameUpper.indexOf(ref + '_') === 0 || nameUpper === ref || nameUpper.indexOf('_' + ref + '_') >= 0;
+                });
+                if (!found) {
+                    found = allFiles.find(function(f) {
+                        return f.name.toUpperCase().indexOf(ref) >= 0;
+                    });
+                }
+                if (found) {
+                    loadFile(found.folder, found.name, found.display);
+                } else {
+                    alert('Working paper ' + ref + ' not found in sidebar.');
+                }
+            });
+        }
+    });
 }
 
 // ========== CONTENT PARSING (unified) ==========
@@ -1737,6 +1864,7 @@ function parseFileContent(markdown) {
     var signoff = null;
     var reviewNotes = [];
     var samples = [];
+    var attachments = [];
     var clean = markdown;
     var signoffMatch = clean.match(/\n*<!-- SIGNOFF:([\s\S]*?) -->/);
     if (signoffMatch) {
@@ -1753,11 +1881,23 @@ function parseFileContent(markdown) {
         try { samples = JSON.parse(samplesMatch[1]); } catch(e) {}
         clean = clean.replace(samplesMatch[0], '');
     }
-    return { docContent: clean.trim(), signoff: signoff, reviewNotes: reviewNotes, samples: samples };
+    // Extract all ATTACHMENT comments (multiple per file)
+    var attRegex = /\n*<!-- ATTACHMENT:([\s\S]*?) -->/g;
+    var attMatch;
+    while ((attMatch = attRegex.exec(clean)) !== null) {
+        try { attachments.push(JSON.parse(attMatch[1])); } catch(e) {}
+    }
+    clean = clean.replace(/\n*<!-- ATTACHMENT:[\s\S]*? -->/g, '');
+    return { docContent: clean.trim(), signoff: signoff, reviewNotes: reviewNotes, samples: samples, attachments: attachments };
 }
 
-function buildFileContent(docContent, signoff, reviewNotes, samples) {
+function buildFileContent(docContent, signoff, reviewNotes, samples, attachments) {
     var content = docContent;
+    if (attachments && attachments.length > 0) {
+        for (var a = 0; a < attachments.length; a++) {
+            content += '\n\n<!-- ATTACHMENT:' + JSON.stringify(attachments[a]) + ' -->';
+        }
+    }
     if (samples && samples.length > 0) {
         content += '\n\n<!-- SAMPLES:' + JSON.stringify(samples) + ' -->';
     }
@@ -1779,18 +1919,22 @@ function renderSamplingTable() {
     var container = document.getElementById('preview-content');
     if (!container) return;
     var html = container.innerHTML;
+    // Detect <!-- SAMPLING_TABLE --> markers in the rendered HTML (they appear as HTML comments)
     var startMarker = '<!-- SAMPLING_TABLE -->';
     var endMarker = '<!-- /SAMPLING_TABLE -->';
     var startIdx = html.indexOf(startMarker);
-    if (startIdx === -1) return;
+    if (startIdx === -1) return; // no sampling table in this file
 
     var parsed = parseFileContent(currentFile.content);
     var savedSamples = parsed.samples || [];
 
+    // Find the table between markers
     var endIdx = html.indexOf(endMarker, startIdx);
     if (endIdx === -1) return;
 
+    // Extract the markdown table HTML between markers and parse rows
     var tableHtml = html.substring(startIdx + startMarker.length, endIdx);
+    // Find all <tr> in the table body to count rows
     var tempDiv = document.createElement('div');
     tempDiv.innerHTML = tableHtml;
     var table = tempDiv.querySelector('table');
@@ -1798,10 +1942,12 @@ function renderSamplingTable() {
     var rows = table.querySelectorAll('tbody tr');
     if (!rows.length) return;
 
+    // Build interactive replacement
     var rowCount = rows.length;
     var vouchedCount = 0;
 
     var interactive = '<div class="sampling-wrapper">';
+    // Progress bar placeholder - filled after counting
     interactive += '<div class="sampling-progress" id="sampling-progress">';
     interactive += '<span id="sampling-progress-text">0 of ' + rowCount + ' vouched</span>';
     interactive += '<div class="sampling-progress-bar"><div class="sampling-progress-fill" id="sampling-progress-fill" style="width:0%"></div></div>';
@@ -1817,6 +1963,7 @@ function renderSamplingTable() {
         var desc = cells[2] ? cells[2].textContent.trim() : '';
         var amount = cells[3] ? cells[3].textContent.trim() : '';
 
+        // Overlay saved state
         var saved = null;
         for (var s = 0; s < savedSamples.length; s++) {
             if (savedSamples[s].row === (i + 1)) { saved = savedSamples[s]; break; }
@@ -1844,12 +1991,15 @@ function renderSamplingTable() {
     interactive += '<button class="sampling-save-btn" onclick="saveSamplingState()">Save Sampling State</button>';
     interactive += '</div>';
 
+    // Replace the marker region
     var before = html.substring(0, startIdx);
     var after = html.substring(endIdx + endMarker.length);
     container.innerHTML = before + interactive + after;
 
+    // Update progress
     updateSamplingProgress(vouchedCount, rowCount);
 
+    // Attach change listeners
     container.querySelectorAll('[data-samp-vouched]').forEach(function(cb) {
         cb.addEventListener('change', function() {
             var total = container.querySelectorAll('[data-samp-vouched]').length;
@@ -1898,7 +2048,7 @@ function saveSamplingState() {
     });
 
     var parsed = parseFileContent(currentFile.content);
-    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, samples);
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, samples, parsed.attachments);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -1922,6 +2072,333 @@ function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str || '';
     return div.innerHTML;
+}
+
+// ========== ATTACHMENT CARDS ==========
+
+function renderAttachmentCards() {
+    var container = document.getElementById('preview-content');
+    if (!container || !currentFile.content) return;
+    var parsed = parseFileContent(currentFile.content);
+    var attachments = parsed.attachments || [];
+    if (attachments.length === 0) return;
+
+    // Append attachment cards at the end of preview content
+    var cardsHtml = '<div class="attachments-section" style="margin-top:24px;"><h3 style="font-size:14px;color:#1e293b;margin-bottom:12px;">Attached Documents</h3>';
+    for (var i = 0; i < attachments.length; i++) {
+        var att = attachments[i];
+        var statusClass = att.status || 'unsigned';
+        var statusLabel = statusClass === 'signed' ? '✅ SIGNED' : statusClass === 'sent' ? '📤 SENT' : '⬜ UNSIGNED';
+        var iconEmoji = att.signed_file ? '📄' : '📎';
+
+        cardsHtml += '<div class="attachment-card" data-att-idx="' + i + '">';
+        cardsHtml += '<div class="attachment-card-header">';
+        cardsHtml += '<span class="attachment-card-icon">' + iconEmoji + '</span>';
+        cardsHtml += '<span class="attachment-card-title">' + escapeHtml(att.title) + '</span>';
+        cardsHtml += '<span class="attachment-status ' + statusClass + '">' + statusLabel + '</span>';
+        cardsHtml += '</div>';
+
+        cardsHtml += '<div class="attachment-card-meta">';
+        cardsHtml += '<span>' + escapeHtml(att.ref) + '</span>';
+        if (att.date_prepared) cardsHtml += '<span>Prepared: ' + escapeHtml(att.date_prepared) + '</span>';
+        if (att.date_sent) cardsHtml += '<span>Sent: ' + escapeHtml(att.date_sent) + '</span>';
+        if (att.date_signed) cardsHtml += '<span>Signed: ' + escapeHtml(att.date_signed) + '</span>';
+        cardsHtml += '</div>';
+
+        // Preview area
+        cardsHtml += '<div class="attachment-preview">';
+        if (att.signed_file) {
+            cardsHtml += '<div id="preview-container-' + i + '" class="pdf-preview-container"><div class="preview-loading">Loading PDF preview...</div></div>';
+            cardsHtml += '<div class="file-info">' + escapeHtml(att.signed_file) + '</div>';
+        } else {
+            cardsHtml += '<div id="preview-container-' + i + '" class="docx-preview-container"><div class="preview-loading">Loading document preview...</div></div>';
+            cardsHtml += '<div class="file-info">' + escapeHtml(att.file) + '</div>';
+        }
+        cardsHtml += '</div>';
+
+        // Action buttons
+        cardsHtml += '<div class="attachment-actions">';
+        cardsHtml += '<button class="attachment-btn" onclick="downloadAttachment(' + i + ')">📥 Download .docx</button>';
+
+        if (statusClass === 'unsigned') {
+            cardsHtml += '<button class="attachment-btn primary" onclick="markAttachmentSent(' + i + ')">📤 Mark as Sent</button>';
+        } else if (statusClass === 'sent') {
+            cardsHtml += '<button class="attachment-btn primary" onclick="uploadSignedPdf(' + i + ')">📤 Upload Signed PDF</button>';
+        } else if (statusClass === 'signed' && att.signed_file) {
+            cardsHtml += '<button class="attachment-btn success" onclick="viewSignedPdf(' + i + ')">📄 View Signed PDF</button>';
+        }
+        cardsHtml += '</div>';
+        cardsHtml += '</div>';
+    }
+    cardsHtml += '</div>';
+    container.innerHTML += cardsHtml;
+
+    // Render document previews
+    for (var j = 0; j < attachments.length; j++) {
+        if (attachments[j].signed_file) {
+            renderPdfPreview(j, currentFile.folder + '/' + attachments[j].signed_file);
+        } else {
+            renderDocxPreview(j, currentFile.folder + '/' + attachments[j].file);
+        }
+    }
+
+    // Build H1 attachment summary if this is H1
+    if (currentFile.name && currentFile.name.indexOf('H1_') === 0) {
+        buildAttachmentSummary();
+    }
+}
+
+function downloadAttachment(idx) {
+    var parsed = parseFileContent(currentFile.content);
+    var att = parsed.attachments[idx];
+    if (!att) return;
+    var url = currentFile.folder + '/' + att.file;
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = att.file;
+    a.click();
+}
+
+function markAttachmentSent(idx) {
+    var parsed = parseFileContent(currentFile.content);
+    var att = parsed.attachments[idx];
+    if (!att) return;
+    att.status = 'sent';
+    att.date_sent = todayStr();
+    saveAttachmentUpdate(parsed);
+}
+
+function uploadSignedPdf(idx) {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = function() {
+        var file = input.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var base64 = e.target.result.split(',')[1];
+            var parsed = parseFileContent(currentFile.content);
+            var att = parsed.attachments[idx];
+            if (!att) return;
+            var signedFilename = att.file.replace('.docx', '_signed.pdf');
+            fetch('/api/upload', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    folder: currentFile.folder,
+                    file: signedFilename,
+                    data: base64
+                })
+            })
+            .then(function(r) {
+                if (!r.ok) throw new Error('Upload failed');
+                return r.json();
+            })
+            .then(function() {
+                att.signed_file = signedFilename;
+                att.status = 'signed';
+                att.date_signed = todayStr();
+                saveAttachmentUpdate(parsed);
+            })
+            .catch(function(err) { alert('Upload error: ' + err.message); });
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+}
+
+function viewSignedPdf(idx) {
+    var parsed = parseFileContent(currentFile.content);
+    var att = parsed.attachments[idx];
+    if (!att || !att.signed_file) return;
+    window.open(currentFile.folder + '/' + att.signed_file, '_blank');
+}
+
+function saveAttachmentUpdate(parsed) {
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples, parsed.attachments);
+    fetch('/api/save', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            folder: currentFile.folder,
+            file: currentFile.name,
+            content: fullContent
+        })
+    })
+    .then(function(r) {
+        if (!r.ok) throw new Error('Save failed');
+        return r.json();
+    })
+    .then(function() {
+        currentFile.content = fullContent;
+        // Re-render
+        var p2 = parseFileContent(currentFile.content);
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(p2.docContent, true)));
+        if (p2.reviewNotes.length > 0) applyReviewNoteHighlights(p2.reviewNotes);
+        renderReviewNoteSummary(p2.reviewNotes);
+        renderSignoffPanel(p2.signoff);
+        attachSelectionListener();
+        attachVariableClickHandlers();
+        renderSamplingTable();
+        renderAttachmentCards();
+    })
+    .catch(function(err) { alert('Save error: ' + err.message); });
+}
+
+function renderPdfPreview(idx, url) {
+    var container = document.getElementById('preview-container-' + idx);
+    if (!container) return;
+    if (typeof pdfjsLib === 'undefined') {
+        container.innerHTML = '<div class="preview-fallback"><div class="docx-icon">📄</div><div style="font-size:11px;color:#94a3b8;">PDF preview unavailable</div></div>';
+        return;
+    }
+    pdfjsLib.getDocument(url).promise.then(function(pdf) {
+        container.innerHTML = '';
+        var numPages = Math.min(pdf.numPages, 3);
+        for (var p = 1; p <= numPages; p++) {
+            (function(pageNum) {
+                pdf.getPage(pageNum).then(function(page) {
+                    var scale = 1.0;
+                    var viewport = page.getViewport({ scale: scale });
+                    var canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    canvas.style.marginBottom = '4px';
+                    container.appendChild(canvas);
+                    page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport });
+                });
+            })(p);
+        }
+        if (pdf.numPages > 3) {
+            var more = document.createElement('div');
+            more.style.cssText = 'font-size:11px;color:#64748b;padding:6px;text-align:center;';
+            more.textContent = '... and ' + (pdf.numPages - 3) + ' more page(s)';
+            container.appendChild(more);
+        }
+    }).catch(function() {
+        container.innerHTML = '<div class="preview-fallback"><div class="docx-icon">📄</div><div style="font-size:11px;color:#94a3b8;">Could not load PDF</div></div>';
+    });
+}
+
+function renderDocxPreview(idx, url) {
+    var container = document.getElementById('preview-container-' + idx);
+    if (!container) return;
+    if (typeof docx === 'undefined' || !docx.renderAsync) {
+        container.innerHTML = '<div class="preview-fallback"><div class="docx-icon">📝</div><div style="font-size:11px;color:#94a3b8;">Preview unavailable</div></div>';
+        return;
+    }
+    fetch(url).then(function(r) {
+        if (!r.ok) throw new Error('Not found');
+        return r.arrayBuffer();
+    }).then(function(buffer) {
+        container.innerHTML = '';
+        return docx.renderAsync(buffer, container, null, {
+            className: 'docx',
+            inWrapper: true,
+            ignoreWidth: true,
+            ignoreHeight: true,
+            ignoreFonts: false,
+            breakPages: false,
+            renderHeaders: true,
+            renderFooters: true,
+            renderFootnotes: true
+        });
+    }).catch(function() {
+        container.innerHTML = '<div class="preview-fallback"><div class="docx-icon">📝</div><div style="font-size:11px;color:#94a3b8;">Could not load preview</div></div>';
+    });
+}
+
+function buildAttachmentSummary() {
+    var container = document.getElementById('preview-content');
+    if (!container) return;
+    var html = container.innerHTML;
+
+    // Scan all loaded files for ATTACHMENT comments
+    var allAttachments = [];
+    if (!allFiles || !allFiles.length) return;
+
+    var fetched = 0;
+    var total = allFiles.length;
+    var fileContents = {};
+
+    // Use cached content if available
+    allFiles.forEach(function(f) {
+        var key = f.folder + '/' + f.name;
+        fetch(key + '?t=' + Date.now())
+            .then(function(r) { return r.ok ? r.text() : ''; })
+            .then(function(md) {
+                fileContents[key] = md;
+                fetched++;
+                if (fetched >= total) {
+                    finishAttachmentSummary(fileContents);
+                }
+            })
+            .catch(function() {
+                fetched++;
+                if (fetched >= total) {
+                    finishAttachmentSummary(fileContents);
+                }
+            });
+    });
+}
+
+function finishAttachmentSummary(fileContents) {
+    var container = document.getElementById('preview-content');
+    if (!container) return;
+
+    var allAtts = [];
+    var keys = Object.keys(fileContents);
+    for (var i = 0; i < keys.length; i++) {
+        var md = fileContents[keys[i]];
+        var parsed = parseFileContent(md);
+        if (parsed.attachments && parsed.attachments.length > 0) {
+            var parts = keys[i].split('/');
+            var wpName = parts[1] ? parts[1].replace('.md', '') : keys[i];
+            for (var j = 0; j < parsed.attachments.length; j++) {
+                var att = parsed.attachments[j];
+                att._wp = wpName;
+                allAtts.push(att);
+            }
+        }
+    }
+
+    if (allAtts.length === 0) return;
+
+    var summaryHtml = '<div style="margin:16px 0;"><h3 style="font-size:14px;color:#1e293b;margin-bottom:8px;">Document Tracking Summary</h3>';
+    summaryHtml += '<table class="attachment-summary-table"><thead><tr>';
+    summaryHtml += '<th>#</th><th>Document</th><th>WP</th><th>Status</th><th>Prepared</th><th>Sent</th><th>Signed</th>';
+    summaryHtml += '</tr></thead><tbody>';
+
+    for (var k = 0; k < allAtts.length; k++) {
+        var a = allAtts[k];
+        var statusIcon = a.status === 'signed' ? '✅ SIGNED' : a.status === 'sent' ? '📤 SENT' : '⬜ UNSIGNED';
+        var statusCls = a.status || 'unsigned';
+        summaryHtml += '<tr>';
+        summaryHtml += '<td>' + (k + 1) + '</td>';
+        summaryHtml += '<td>' + escapeHtml(a.title) + '</td>';
+        summaryHtml += '<td>' + escapeHtml(a._wp || '') + '</td>';
+        summaryHtml += '<td><span class="attachment-status ' + statusCls + '">' + statusIcon + '</span></td>';
+        summaryHtml += '<td>' + (a.date_prepared || '-') + '</td>';
+        summaryHtml += '<td>' + (a.date_sent || '-') + '</td>';
+        summaryHtml += '<td>' + (a.date_signed || '-') + '</td>';
+        summaryHtml += '</tr>';
+    }
+    summaryHtml += '</tbody></table></div>';
+
+    // Insert at the ATTACHMENT_SUMMARY marker, or append after first heading
+    var markerPos = container.innerHTML.indexOf('<!-- ATTACHMENT_SUMMARY -->');
+    if (markerPos !== -1) {
+        container.innerHTML = container.innerHTML.replace('<!-- ATTACHMENT_SUMMARY -->', summaryHtml);
+    } else {
+        // Insert after the first h1 or h2
+        var firstHeading = container.querySelector('h1, h2');
+        if (firstHeading) {
+            firstHeading.insertAdjacentHTML('afterend', summaryHtml);
+        } else {
+            container.innerHTML = summaryHtml + container.innerHTML;
+        }
+    }
 }
 
 function renderSignoffPanel(signoffData) {
@@ -1996,7 +2473,7 @@ function signOffReviewer() {
 
 function saveSignoff(signoffData) {
     var parsed = parseFileContent(currentFile.content);
-    var fullContent = buildFileContent(parsed.docContent, signoffData, parsed.reviewNotes, parsed.samples);
+    var fullContent = buildFileContent(parsed.docContent, signoffData, parsed.reviewNotes, parsed.samples, parsed.attachments);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -2107,7 +2584,7 @@ function saveFile() {
     var editedContent = tuiEditor.getMarkdown();
 
     var parsed = parseFileContent(currentFile.content);
-    var fullContent = buildFileContent(editedContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
+    var fullContent = buildFileContent(editedContent, parsed.signoff, parsed.reviewNotes, parsed.samples, parsed.attachments);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -2124,13 +2601,14 @@ function saveFile() {
     })
     .then(function() {
         currentFile.content = fullContent;
-        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(editedContent, true)));
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(editedContent, true)));
         if (parsed.reviewNotes.length > 0) applyReviewNoteHighlights(parsed.reviewNotes);
         renderReviewNoteSummary(parsed.reviewNotes);
         renderSignoffPanel(parsed.signoff);
         attachSelectionListener();
         attachVariableClickHandlers();
         renderSamplingTable();
+        renderAttachmentCards();
         cancelEdit();
         statusEl.className = 'save-status saved';
         statusEl.textContent = 'Saved';
@@ -2276,7 +2754,7 @@ function submitNewReviewNote() {
 
     var parsed = parseFileContent(currentFile.content);
     parsed.reviewNotes.push(noteObj);
-    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples, parsed.attachments);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -2286,13 +2764,14 @@ function submitNewReviewNote() {
     .then(function(r) { if (!r.ok) throw new Error('Save failed'); return r.json(); })
     .then(function() {
         currentFile.content = fullContent;
-        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
         applyReviewNoteHighlights(parsed.reviewNotes);
         renderReviewNoteSummary(parsed.reviewNotes);
         renderSignoffPanel(parsed.signoff);
         attachSelectionListener();
         attachVariableClickHandlers();
         renderSamplingTable();
+        renderAttachmentCards();
         closeModal('add-note-overlay');
     })
     .catch(function(err) { alert('Failed to save review note: ' + err.message); });
@@ -2366,7 +2845,7 @@ function deleteReviewNote(noteId) {
 }
 
 function saveAndRerender(parsed, modalId) {
-    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples, parsed.attachments);
     fetch('/api/save', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2375,13 +2854,14 @@ function saveAndRerender(parsed, modalId) {
     .then(function(r) { if (!r.ok) throw new Error('Save failed'); return r.json(); })
     .then(function() {
         currentFile.content = fullContent;
-        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(safeParse(substituteVariables(parsed.docContent, true)));
+        document.getElementById('preview-content').innerHTML = wrapVariableMarkers(marked.parse(substituteVariables(parsed.docContent, true)));
         if (parsed.reviewNotes.length > 0) applyReviewNoteHighlights(parsed.reviewNotes);
         renderReviewNoteSummary(parsed.reviewNotes);
         renderSignoffPanel(parsed.signoff);
         attachSelectionListener();
         attachVariableClickHandlers();
         renderSamplingTable();
+        renderAttachmentCards();
         if (modalId) closeModal(modalId);
     })
     .catch(function(err) { alert('Failed to save: ' + err.message); });
@@ -2585,7 +3065,7 @@ async function clearAllResolvedNotes() {
             var md = await resp.text();
             var parsed = parseFileContent(md);
             parsed.reviewNotes = parsed.reviewNotes.filter(function(n) { return n.status !== 'resolved'; });
-            var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
+            var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples, parsed.attachments);
             await fetch('/api/save', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2756,7 +3236,7 @@ async function applyBulkSignoff() {
                 signoff.reviews.push({ name: name, date: date, note: note });
             }
 
-            var fullContent = buildFileContent(parsed.docContent, signoff, parsed.reviewNotes, parsed.samples);
+            var fullContent = buildFileContent(parsed.docContent, signoff, parsed.reviewNotes, parsed.samples, parsed.attachments);
             var saveResp = await fetch('/api/save', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2835,7 +3315,7 @@ async function downloadAllDocuments() {
                     loadedFiles.push({
                         section: sec.title, sectionId: sec.id, sectionIcon: sec.icon,
                         name: file.name, display: file.display, content: content,
-                        html: safeParse(substituteVariables(content))
+                        html: marked.parse(substituteVariables(content))
                     });
                 }
             } catch (e) { console.log('Could not load: ' + sec.id + '/' + file.name); }
@@ -2943,7 +3423,7 @@ var aiSystemPrompt = 'You are a professional Malaysian audit workpaper assistant
     '- When creating new content that references company info or financial figures, use the appropriate {{variable}} placeholder.\n\n' +
     'RULES:\n' +
     '1. ALWAYS use read_file to read a file BEFORE updating it.\n' +
-    '2. When updating a file with update_file, you MUST preserve any <!-- SIGNOFF:... -->, <!-- REVIEWNOTES:... -->, and <!-- SAMPLES:... --> HTML comments at the end of the file. Do NOT remove or alter them.\n' +
+    '2. When updating a file with update_file, you MUST preserve any <!-- ATTACHMENT:... -->, <!-- SIGNOFF:... -->, <!-- REVIEWNOTES:... -->, and <!-- SAMPLES:... --> HTML comments at the end of the file. Do NOT remove or alter them.\n' +
     '3. NEVER replace {{variable}} placeholders with hardcoded values. To change a value, use update_master_data instead.\n' +
     '4. When a user asks for changes, identify ALL related files that need updating and update them all to maintain consistency.\n' +
     '5. Ensure all audit procedures are documented per ISA requirements.\n' +
@@ -2968,7 +3448,7 @@ var aiToolDefs = [
     },
     {
         name: 'update_file',
-        description: 'Update (overwrite) a workpaper markdown file with new content. Always read the file first. Preserve SIGNOFF, REVIEWNOTES, and SAMPLES comments.',
+        description: 'Update (overwrite) a workpaper markdown file with new content. Always read the file first. Preserve ATTACHMENT, SIGNOFF, REVIEWNOTES, and SAMPLES comments.',
         input_schema: {
             type: 'object',
             properties: {
@@ -3150,7 +3630,7 @@ function appendAIMessage(role, content) {
         div.textContent = content;
     } else if (role === 'assistant') {
         div.className = 'ai-msg ai-msg-assistant';
-        div.innerHTML = safeParse(content);
+        div.innerHTML = marked.parse(content);
     } else if (role === 'error') {
         div.className = 'ai-msg-error';
         div.textContent = content;

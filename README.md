@@ -11,7 +11,11 @@ Before using this codebase, install the following on your computer:
 - **Python 3.6 or later**
 - Download from: https://www.python.org/downloads/
 - During installation, **check "Add Python to PATH"**
-- No additional Python packages needed — the project uses only the standard library
+- Install the `python-docx` package for Word document generation:
+
+```bash
+pip install python-docx
+```
 
 To verify installation, open a terminal and run:
 
@@ -53,12 +57,13 @@ npm install -g @anthropic-ai/claude-code
 | Software | Minimum Version | Purpose |
 |----------|----------------|---------|
 | Python | 3.6+ | Local HTTP server for the audit viewer |
+| python-docx | Latest | Word document generation for audit templates |
 | Git | Any recent | Version control |
 | Node.js | 18+ | Required to install Claude Code CLI |
 | Claude Code | Latest | AI assistant with audit skills |
 | Web Browser | Modern | View interactive audit working papers |
 
-> **Note:** No `pip install`, `npm install`, or `requirements.txt` is needed for the project itself. All frontend libraries (Toast UI Editor, Marked.js) are loaded from CDN. Python uses only standard library modules.
+> **Note:** No `pip install`, `npm install`, or `requirements.txt` is needed for the project itself. All frontend libraries (Toast UI Editor, Marked.js, pdf.js, JSZip, docx-preview) are loaded from CDN. Python uses only standard library modules.
 
 ## Quick Start
 
@@ -83,7 +88,7 @@ npm install -g @anthropic-ai/claude-code
    | `/risk-assessment` | Perform risk assessment and identify red flags |
    | `/awp [area]` | Generate audit working papers (PPE, bank, receivables, etc.) |
    | `/sampling [area]` | Generate ISA 530 audit sampling papers (MUS calculation, selection, evaluation) |
-   | `/templates [type]` | Generate audit letters & document templates (engagement letter, confirmations, MRL, etc.) |
+   | `/templates [type]` | Generate .docx audit letters with embedded document tracking (engagement, confirmations, MRL, etc.) |
    | `/fs [component]` | Draft financial statements (SOFP, SOCI, notes) |
    | `/pbc [action]` | Manage PBC checklist |
    | `/query [action]` | Manage audit queries |
@@ -129,7 +134,7 @@ Pilot - Audit - Claude/
         ├── E_Income_Statement/   # E1-E8: Revenue (SAP+TOD), expenses (SAP/TOD)
         ├── F_Completion/         # F1-F9: Going concern, subsequent events, report
         ├── G_Financial_Statements/ # G1-G3: Directors' report, SOFP, SOCI
-        └── T_Templates/          # T1-T16: Letters, confirmations, MRL, adjustments
+        └── [.docx files embedded in section folders alongside parent WPs]
 ```
 
 ## Key Features
@@ -141,4 +146,5 @@ Pilot - Audit - Claude/
 - **16 Template Letters (T1-T16)** — engagement letter, bank/debtor/creditor/director/legal confirmations, MRL, director support letter, audit adjustments summaries, directors' remuneration & shareholding confirmations
 - **ISA 530 Audit Sampling** — MUS calculation, systematic selection, and evaluation framework
 - **`{{variable}}` Placeholder System** — all monetary figures use placeholders from `master_data.json`, resolved at render time in the viewer
+- **WYSIWYG Document Preview** — .docx files rendered inline via docx-preview (letterhead, tables, signatures visible without opening Word); signed PDFs rendered via pdf.js
 - **Interactive Viewer** — single-page HTML app with markdown rendering, variable resolution, sidebar navigation, and AI-powered audit assistant chat
