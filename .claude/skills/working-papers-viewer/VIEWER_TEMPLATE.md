@@ -72,7 +72,7 @@ class AuditViewerHandler(http.server.SimpleHTTPRequestHandler):
                     return
 
                 # Validate filename pattern (e.g. A1_Planning_Memo.md)
-                if not re.match(r'^[A-Za-z0-9_]+\.md$', filename):
+                if not re.match(r'^[A-Za-z0-9_-]+\.md$', filename):
                     self._send_json(400, {'error': 'Invalid filename'})
                     return
 
@@ -1076,6 +1076,27 @@ if %errorlevel% neq 0 (
         .ai-skill-chip.more-btn { font-style: italic; color: #94a3b8; border-style: dashed; }
         .ai-skill-chip.more-btn:hover { color: #7c3aed; border-color: #7c3aed; }
         @media print { #nav-panel, #resizer { display: none; } #preview-panel { width: 100%; } #signoff-panel button, #signoff-panel input { display: none; } .review-note-highlight { background: #fef9c3 !important; -webkit-print-color-adjust: exact; } .add-note-popup, .modal-overlay, .ai-chat-toggle, #ai-chat-panel { display: none !important; } }
+        /* Sampling table styles */
+        .sampling-wrapper { margin: 16px 0; }
+        .sampling-progress { display: flex; align-items: center; gap: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 8px 14px; margin-bottom: 10px; font-size: 13px; font-weight: 600; color: #166534; }
+        .sampling-progress-bar { flex: 1; height: 6px; background: #dcfce7; border-radius: 3px; overflow: hidden; }
+        .sampling-progress-fill { height: 100%; background: #22c55e; border-radius: 3px; transition: width 0.3s; }
+        .sampling-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .sampling-table thead th { background: #1e40af; color: #fff; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #1e3a8a; }
+        .sampling-table tbody td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: middle; }
+        .sampling-table tbody tr:hover td { background: #eff6ff; }
+        .sampling-table tbody tr.sampling-exception td { background: #fef2f2; }
+        .sampling-table tbody tr.sampling-exception:hover td { background: #fee2e2; }
+        .sampling-table .samp-num { text-align: center; font-weight: 600; color: #64748b; width: 40px; }
+        .sampling-table .samp-check { text-align: center; width: 60px; }
+        .sampling-table .samp-check input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #22c55e; }
+        .sampling-table .samp-remark input { width: 100%; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; background: #fff; }
+        .sampling-table .samp-remark input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+        .sampling-table .samp-disc input { width: 90px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; text-align: right; background: #fff; }
+        .sampling-table .samp-disc input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+        .sampling-table .samp-disc input.has-value { border-color: #ef4444; background: #fef2f2; color: #dc2626; font-weight: 600; }
+        .sampling-save-btn { margin-top: 8px; padding: 6px 16px; background: #1e40af; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .sampling-save-btn:hover { background: #1e3a8a; }
     </style>
 </head>
 <body>
@@ -1368,6 +1389,7 @@ function saveVariableInline(varName, newValue, varDef) {
             renderSignoffPanel(parsed.signoff);
             attachSelectionListener();
             attachVariableClickHandlers();
+            renderSamplingTable();
             document.getElementById('preview-content').scrollTop = scrollPos;
         }
         showVarToast('Updated: ' + varDef.label, 'success');
@@ -1701,6 +1723,7 @@ function loadFile(folder, filename, displayName) {
             renderSignoffPanel(parsed.signoff);
             attachSelectionListener();
             attachVariableClickHandlers();
+            renderSamplingTable();
         })
         .catch(function(error) {
             document.getElementById('preview-content').innerHTML = '<div class="welcome"><h2>Cannot Load File</h2><p>Run START_VIEWER.bat to view files.</p></div>';
@@ -1713,6 +1736,7 @@ function loadFile(folder, filename, displayName) {
 function parseFileContent(markdown) {
     var signoff = null;
     var reviewNotes = [];
+    var samples = [];
     var clean = markdown;
     var signoffMatch = clean.match(/\n*<!-- SIGNOFF:([\s\S]*?) -->/);
     if (signoffMatch) {
@@ -1724,11 +1748,19 @@ function parseFileContent(markdown) {
         try { reviewNotes = JSON.parse(notesMatch[1]); } catch(e) {}
         clean = clean.replace(notesMatch[0], '');
     }
-    return { docContent: clean.trim(), signoff: signoff, reviewNotes: reviewNotes };
+    var samplesMatch = clean.match(/\n*<!-- SAMPLES:([\s\S]*?) -->/);
+    if (samplesMatch) {
+        try { samples = JSON.parse(samplesMatch[1]); } catch(e) {}
+        clean = clean.replace(samplesMatch[0], '');
+    }
+    return { docContent: clean.trim(), signoff: signoff, reviewNotes: reviewNotes, samples: samples };
 }
 
-function buildFileContent(docContent, signoff, reviewNotes) {
+function buildFileContent(docContent, signoff, reviewNotes, samples) {
     var content = docContent;
+    if (samples && samples.length > 0) {
+        content += '\n\n<!-- SAMPLES:' + JSON.stringify(samples) + ' -->';
+    }
     if (reviewNotes && reviewNotes.length > 0) {
         content += '\n\n<!-- REVIEWNOTES:' + JSON.stringify(reviewNotes) + ' -->';
     }
@@ -1740,6 +1772,146 @@ function buildFileContent(docContent, signoff, reviewNotes) {
 
 function extractSignoff(markdown) { return parseFileContent(markdown).signoff; }
 function extractDocContent(markdown) { return parseFileContent(markdown).docContent; }
+
+// ========== SAMPLING TABLE (ISA 530) ==========
+
+function renderSamplingTable() {
+    var container = document.getElementById('preview-content');
+    if (!container) return;
+    var html = container.innerHTML;
+    var startMarker = '<!-- SAMPLING_TABLE -->';
+    var endMarker = '<!-- /SAMPLING_TABLE -->';
+    var startIdx = html.indexOf(startMarker);
+    if (startIdx === -1) return;
+
+    var parsed = parseFileContent(currentFile.content);
+    var savedSamples = parsed.samples || [];
+
+    var endIdx = html.indexOf(endMarker, startIdx);
+    if (endIdx === -1) return;
+
+    var tableHtml = html.substring(startIdx + startMarker.length, endIdx);
+    var tempDiv = document.createElement('div');
+    tempDiv.innerHTML = tableHtml;
+    var table = tempDiv.querySelector('table');
+    if (!table) return;
+    var rows = table.querySelectorAll('tbody tr');
+    if (!rows.length) return;
+
+    var rowCount = rows.length;
+    var vouchedCount = 0;
+
+    var interactive = '<div class="sampling-wrapper">';
+    interactive += '<div class="sampling-progress" id="sampling-progress">';
+    interactive += '<span id="sampling-progress-text">0 of ' + rowCount + ' vouched</span>';
+    interactive += '<div class="sampling-progress-bar"><div class="sampling-progress-fill" id="sampling-progress-fill" style="width:0%"></div></div>';
+    interactive += '</div>';
+    interactive += '<table class="sampling-table"><thead><tr>';
+    interactive += '<th>#</th><th>Item Ref</th><th>Description</th><th>Amount (RM)</th><th>Vouched</th><th>Remark</th><th>Discrepancy (RM)</th>';
+    interactive += '</tr></thead><tbody>';
+
+    for (var i = 0; i < rowCount; i++) {
+        var cells = rows[i].querySelectorAll('td');
+        var rowNum = cells[0] ? cells[0].textContent.trim() : (i + 1);
+        var itemRef = cells[1] ? cells[1].textContent.trim() : '';
+        var desc = cells[2] ? cells[2].textContent.trim() : '';
+        var amount = cells[3] ? cells[3].textContent.trim() : '';
+
+        var saved = null;
+        for (var s = 0; s < savedSamples.length; s++) {
+            if (savedSamples[s].row === (i + 1)) { saved = savedSamples[s]; break; }
+        }
+        var isVouched = saved ? saved.vouched : false;
+        var remark = saved ? (saved.remark || '') : '';
+        var discrepancy = saved ? (saved.discrepancy || 0) : 0;
+        if (isVouched) vouchedCount++;
+
+        var hasDisc = discrepancy && parseFloat(discrepancy) !== 0;
+        var rowClass = hasDisc ? ' class="sampling-exception"' : '';
+
+        interactive += '<tr' + rowClass + ' data-samp-row="' + (i + 1) + '">';
+        interactive += '<td class="samp-num">' + escapeHtml(String(rowNum)) + '</td>';
+        interactive += '<td>' + escapeHtml(itemRef) + '</td>';
+        interactive += '<td>' + escapeHtml(desc) + '</td>';
+        interactive += '<td>' + escapeHtml(amount) + '</td>';
+        interactive += '<td class="samp-check"><input type="checkbox" data-samp-vouched="' + (i + 1) + '"' + (isVouched ? ' checked' : '') + '></td>';
+        interactive += '<td class="samp-remark"><input type="text" data-samp-remark="' + (i + 1) + '" value="' + escapeHtml(remark) + '" placeholder="Enter remark..."></td>';
+        interactive += '<td class="samp-disc"><input type="number" data-samp-disc="' + (i + 1) + '" value="' + (hasDisc ? discrepancy : '') + '" placeholder="0.00" step="0.01" class="' + (hasDisc ? 'has-value' : '') + '"></td>';
+        interactive += '</tr>';
+    }
+
+    interactive += '</tbody></table>';
+    interactive += '<button class="sampling-save-btn" onclick="saveSamplingState()">Save Sampling State</button>';
+    interactive += '</div>';
+
+    var before = html.substring(0, startIdx);
+    var after = html.substring(endIdx + endMarker.length);
+    container.innerHTML = before + interactive + after;
+
+    updateSamplingProgress(vouchedCount, rowCount);
+
+    container.querySelectorAll('[data-samp-vouched]').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            var total = container.querySelectorAll('[data-samp-vouched]').length;
+            var checked = container.querySelectorAll('[data-samp-vouched]:checked').length;
+            updateSamplingProgress(checked, total);
+        });
+    });
+    container.querySelectorAll('[data-samp-disc]').forEach(function(inp) {
+        inp.addEventListener('input', function() {
+            var val = parseFloat(this.value);
+            var row = this.closest('tr');
+            if (val && val !== 0) {
+                this.classList.add('has-value');
+                if (row) row.classList.add('sampling-exception');
+            } else {
+                this.classList.remove('has-value');
+                if (row) row.classList.remove('sampling-exception');
+            }
+        });
+    });
+}
+
+function updateSamplingProgress(vouched, total) {
+    var textEl = document.getElementById('sampling-progress-text');
+    var fillEl = document.getElementById('sampling-progress-fill');
+    if (textEl) textEl.textContent = vouched + ' of ' + total + ' vouched';
+    if (fillEl) fillEl.style.width = (total > 0 ? Math.round(vouched / total * 100) : 0) + '%';
+}
+
+function saveSamplingState() {
+    if (!currentFile || !currentFile.content) return;
+    var container = document.getElementById('preview-content');
+    var sampRows = container.querySelectorAll('tr[data-samp-row]');
+    var samples = [];
+    sampRows.forEach(function(row) {
+        var rowNum = parseInt(row.getAttribute('data-samp-row'));
+        var vouched = row.querySelector('[data-samp-vouched]');
+        var remark = row.querySelector('[data-samp-remark]');
+        var disc = row.querySelector('[data-samp-disc]');
+        samples.push({
+            row: rowNum,
+            vouched: vouched ? vouched.checked : false,
+            remark: remark ? remark.value : '',
+            discrepancy: disc && disc.value ? parseFloat(disc.value) : 0
+        });
+    });
+
+    var parsed = parseFileContent(currentFile.content);
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, samples);
+
+    fetch('/api/save', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: currentFile.folder, file: currentFile.name, content: fullContent })
+    })
+    .then(function(r) { if (!r.ok) throw new Error('Save failed'); return r.json(); })
+    .then(function() {
+        currentFile.content = fullContent;
+        showVarToast('Sampling state saved', 'success');
+    })
+    .catch(function(err) { showVarToast('Error: ' + err.message, 'error'); });
+}
 
 function todayStr() {
     var d = new Date();
@@ -1824,7 +1996,7 @@ function signOffReviewer() {
 
 function saveSignoff(signoffData) {
     var parsed = parseFileContent(currentFile.content);
-    var fullContent = buildFileContent(parsed.docContent, signoffData, parsed.reviewNotes);
+    var fullContent = buildFileContent(parsed.docContent, signoffData, parsed.reviewNotes, parsed.samples);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -1935,7 +2107,7 @@ function saveFile() {
     var editedContent = tuiEditor.getMarkdown();
 
     var parsed = parseFileContent(currentFile.content);
-    var fullContent = buildFileContent(editedContent, parsed.signoff, parsed.reviewNotes);
+    var fullContent = buildFileContent(editedContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -1958,6 +2130,7 @@ function saveFile() {
         renderSignoffPanel(parsed.signoff);
         attachSelectionListener();
         attachVariableClickHandlers();
+        renderSamplingTable();
         cancelEdit();
         statusEl.className = 'save-status saved';
         statusEl.textContent = 'Saved';
@@ -2103,7 +2276,7 @@ function submitNewReviewNote() {
 
     var parsed = parseFileContent(currentFile.content);
     parsed.reviewNotes.push(noteObj);
-    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes);
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
 
     fetch('/api/save', {
         method: 'PUT',
@@ -2119,6 +2292,7 @@ function submitNewReviewNote() {
         renderSignoffPanel(parsed.signoff);
         attachSelectionListener();
         attachVariableClickHandlers();
+        renderSamplingTable();
         closeModal('add-note-overlay');
     })
     .catch(function(err) { alert('Failed to save review note: ' + err.message); });
@@ -2192,7 +2366,7 @@ function deleteReviewNote(noteId) {
 }
 
 function saveAndRerender(parsed, modalId) {
-    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes);
+    var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
     fetch('/api/save', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2207,6 +2381,7 @@ function saveAndRerender(parsed, modalId) {
         renderSignoffPanel(parsed.signoff);
         attachSelectionListener();
         attachVariableClickHandlers();
+        renderSamplingTable();
         if (modalId) closeModal(modalId);
     })
     .catch(function(err) { alert('Failed to save: ' + err.message); });
@@ -2410,7 +2585,7 @@ async function clearAllResolvedNotes() {
             var md = await resp.text();
             var parsed = parseFileContent(md);
             parsed.reviewNotes = parsed.reviewNotes.filter(function(n) { return n.status !== 'resolved'; });
-            var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes);
+            var fullContent = buildFileContent(parsed.docContent, parsed.signoff, parsed.reviewNotes, parsed.samples);
             await fetch('/api/save', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2581,7 +2756,7 @@ async function applyBulkSignoff() {
                 signoff.reviews.push({ name: name, date: date, note: note });
             }
 
-            var fullContent = buildFileContent(parsed.docContent, signoff, parsed.reviewNotes);
+            var fullContent = buildFileContent(parsed.docContent, signoff, parsed.reviewNotes, parsed.samples);
             var saveResp = await fetch('/api/save', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2768,7 +2943,7 @@ var aiSystemPrompt = 'You are a professional Malaysian audit workpaper assistant
     '- When creating new content that references company info or financial figures, use the appropriate {{variable}} placeholder.\n\n' +
     'RULES:\n' +
     '1. ALWAYS use read_file to read a file BEFORE updating it.\n' +
-    '2. When updating a file with update_file, you MUST preserve any <!-- SIGNOFF:... --> and <!-- REVIEWNOTES:... --> HTML comments at the end of the file. Do NOT remove or alter them.\n' +
+    '2. When updating a file with update_file, you MUST preserve any <!-- SIGNOFF:... -->, <!-- REVIEWNOTES:... -->, and <!-- SAMPLES:... --> HTML comments at the end of the file. Do NOT remove or alter them.\n' +
     '3. NEVER replace {{variable}} placeholders with hardcoded values. To change a value, use update_master_data instead.\n' +
     '4. When a user asks for changes, identify ALL related files that need updating and update them all to maintain consistency.\n' +
     '5. Ensure all audit procedures are documented per ISA requirements.\n' +
@@ -2793,7 +2968,7 @@ var aiToolDefs = [
     },
     {
         name: 'update_file',
-        description: 'Update (overwrite) a workpaper markdown file with new content. Always read the file first. Preserve SIGNOFF and REVIEWNOTES comments.',
+        description: 'Update (overwrite) a workpaper markdown file with new content. Always read the file first. Preserve SIGNOFF, REVIEWNOTES, and SAMPLES comments.',
         input_schema: {
             type: 'object',
             properties: {
