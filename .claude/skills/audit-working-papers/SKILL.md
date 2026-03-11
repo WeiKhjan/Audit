@@ -65,6 +65,7 @@ SECTION T - TEMPLATES & LETTERS
   T9 - Legal Confirmation          T10 - Stock Confirmation
   T11 - Management Representation  T12 - Director Support Letter
   T13 - Audit Adjustments Summary  T14 - Uncorrected Differences
+  T15 - Director Remuneration Conf T16 - Director Shareholding Conf
 ```
 
 After generating working papers, run `/templates all` to generate all required letters and document templates.
@@ -361,7 +362,9 @@ Clients/AWP_[Client]_FYE[Year]/
 │   ├── T11_Management_Representation.md
 │   ├── T12_Director_Support_Letter.md
 │   ├── T13_Summary_Audit_Adjustments.md
-│   └── T14_Summary_Uncorrected_Differences.md
+│   ├── T14_Summary_Uncorrected_Differences.md
+│   ├── T15_Director_Remuneration_Confirmation.md
+│   └── T16_Director_Shareholding_Confirmation.md
 ├── 00_Index.md
 ├── master_data.json
 ├── server.py

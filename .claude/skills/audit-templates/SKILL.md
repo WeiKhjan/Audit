@@ -11,12 +11,12 @@ description: Generate standard audit letters and document templates pre-filled w
 
 | Type | Generates |
 |------|-----------|
-| `all` | All 14 templates (T1-T14) |
+| `all` | All 16 templates (T1-T16) |
 | `engagement` | Group A: T1, T2, T3 |
-| `confirmations` | Group B: T4, T5, T6, T7, T8, T9, T10 |
+| `confirmations` | Group B: T4, T5, T6, T7, T8, T9, T10, T15, T16 |
 | `completion` | Group C: T11, T12 |
 | `differences` | Group D: T13, T14 |
-| `T1` through `T14` | Individual template by code |
+| `T1` through `T16` | Individual template by code |
 
 ## Output Directory
 
@@ -37,7 +37,9 @@ Clients/AWP_[ClientName]_FYE[Year]/T_Templates/
 ├── T11_Management_Representation.md
 ├── T12_Director_Support_Letter.md
 ├── T13_Summary_Audit_Adjustments.md
-└── T14_Summary_Uncorrected_Differences.md
+├── T14_Summary_Uncorrected_Differences.md
+├── T15_Director_Remuneration_Confirmation.md
+└── T16_Director_Shareholding_Confirmation.md
 ```
 
 ## Templates Index
@@ -61,6 +63,8 @@ Clients/AWP_[ClientName]_FYE[Year]/T_Templates/
 | T8 | Related Party/Director Confirmation | ISA 550 | ~2-3 per director |
 | T9 | Legal Confirmation | ISA 501 | ~1 |
 | T10 | Stock/Inventory Confirmation | ISA 505 | ~1 per warehouse |
+| T15 | Directors' Remuneration Confirmation | CA 2016 s.230 / MPERS S33 | ~2-3 per director |
+| T16 | Directors' Shareholding Confirmation | CA 2016 s.59 / s.230 | ~2-3 per director |
 
 ### Group C — Client-to-Auditor Letters
 
@@ -1376,6 +1380,73 @@ Date: {{letter_date}}
 
 ---
 
+## T15 — Directors' Remuneration Confirmation (Companies Act 2016 s.230 / MPERS S33)
+
+### Purpose
+
+Standalone confirmation signed by **each director individually** confirming all remuneration, fees, benefits, and compensation received from the Company during the financial year. Required for:
+- Directors' Report disclosure under Companies Act 2016 s.230
+- MPERS Section 33 — Key management personnel compensation disclosure
+- ISA 550 — Related party transactions verification
+- Financial statements note on directors' remuneration
+
+### Structure (per director)
+
+1. **Section A — Directors' Fees & Remuneration**: Directors' fees, salary, bonus, allowances, commission
+2. **Section B — Defined Contribution Plans**: EPF, SOCSO, EIS (employer's portion)
+3. **Section C — Benefits-in-Kind**: Motor vehicle, fuel, housing, others
+4. **Section D — Other Compensation**: Leave passage, insurance premiums, indemnities, others
+5. **Section E — Summary**: Grand total of all components
+6. **Section F — Confirmation**: Completeness assertion and signature
+
+### Key Variables
+
+- `{{director_N_fees}}`, `{{director_N_salary}}`, `{{director_N_bonus}}`
+- `{{director_N_epf_employer}}`, `{{director_N_socso_employer}}`, `{{director_N_eis_employer}}`
+- `{{director_N_total_bik}}`, `{{director_N_grand_total_remuneration}}`
+
+### Signature Requirements
+
+- Each director signs their own section individually
+- NRIC number required
+- One copy per director — do NOT combine into a single document with joint signature
+
+---
+
+## T16 — Directors' Shareholding Confirmation (Companies Act 2016 s.59 / s.230)
+
+### Purpose
+
+Standalone confirmation signed by **each director individually** confirming all direct and indirect interests in shares of the Company and its related corporations. Required for:
+- Companies Act 2016 s.59 — Register of members
+- Companies Act 2016 s.230 — Directors' Report — directors' interests in shares
+- MPERS Section 33 — Related party disclosures (ownership / control)
+- ISA 550 — Identification of related party relationships
+- D1 Share Capital working paper verification
+
+### Structure (per director)
+
+1. **Section A — Direct Shareholding**: Opening balance, acquisitions, disposals, closing balance, percentage
+2. **Section B — Indirect / Deemed Shareholding**: Shares held through spouse, children, nominees
+3. **Section C — Shares in Related Corporations**: Subsidiaries, holding company, fellow subsidiaries
+4. **Section D — Changes During the Year**: Date, transaction type, number of shares, consideration
+5. **Section E — Share Options / Warrants**: Options, warrants, convertible securities
+6. **Section F — Confirmation**: Completeness assertion and signature
+
+### Key Variables
+
+- `{{director_N_shares}}`, `{{director_N_shares_bf}}`, `{{director_N_shares_pct}}`
+- `{{director_N_shares_acquired}}`, `{{director_N_shares_disposed}}`
+- `{{share_capital}}`, `{{fy_start}}`, `{{year_end_date}}`
+
+### Signature Requirements
+
+- Each director signs their own section individually
+- NRIC number required
+- One copy per director — do NOT combine into a single document with joint signature
+
+---
+
 ## Integration Notes
 
 ### Cross-References to Other Working Papers
@@ -1396,11 +1467,13 @@ Date: {{letter_date}}
 | T12 Director Support Letter | F1 (Going Concern) |
 | T13 Audit Adjustments | F6 (Summary of Audit Differences) |
 | T14 Uncorrected Differences | F6 (Summary of Audit Differences) |
+| T15 Director Remuneration Conf | F3 (Related Parties), E4 (Admin Expenses), G1 (Directors' Report) |
+| T16 Director Shareholding Conf | D1 (Share Capital), F3 (Related Parties), G1 (Directors' Report) |
 
 ### Workflow Integration
 
 1. **During Planning Phase:** Generate T1 (Engagement Letter) and T2 (PBC Request Letter)
-2. **During Fieldwork Phase:** Generate T4-T10 (Confirmation Letters) as needed
+2. **During Fieldwork Phase:** Generate T4-T10, T15, T16 (Confirmation Letters) as needed
 3. **During Completion Phase:** Generate T3, T11, T12, T13, T14
 4. **After generating AWPs via `/awp`:** Run `/templates all` to ensure all required letters exist
 5. **T2 auto-population:** When H1 PBC Checklist exists, T2 document list should be populated from H1 items

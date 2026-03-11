@@ -80,7 +80,7 @@ For every accounting estimate in the financial statements:
 - **A1 Engagement Letter** must be signed BEFORE substantive work begins
 - **F7 Management Representation Letter** must be obtained before issuing audit opinion
 - **F8 Completion Checklist** must be fully cleared before F9 audit report is finalized
-- **All engagements must have T1-T14 templates generated** via `/templates all` — engagement letter, confirmations, MRL, director support letter, and audit differences summaries
+- **All engagements must have T1-T16 templates generated** via `/templates all` — engagement letter, confirmations, MRL, director support letter, audit differences summaries, and director remuneration/shareholding confirmations
 - **All reviewer sign-offs** must be completed on every working paper
 - **F1 Going Concern** must include an audit report impact decision matrix
 - **F2 Subsequent Events** must cover both adjusting and non-adjusting events with structured procedures
